@@ -1,0 +1,33 @@
+config:
+  # 数据库连接信息
+  database:
+    type: mysql
+    database: trading_game # 该数据库必须已经存在！
+    address: 192.168.137.200
+    port: 3306
+    username: liu
+    password: 1qaz@WSX
+  # 商品信息的文件
+  goods:
+    import_file: document/goods.yml
+  # 控制简易程度 
+  difficulty_level:
+    # 上涨概率
+    probability_of_price_increase: 50
+  # 登录方式 默认为内置
+  login_method:
+    model: builtin
+    other_information: 
+      username: frank
+      password: 1qaz@WSX
+  # 初始化配置
+  initialize_configuration:
+    default_money: 100000
+    # 默认仓库大小 和 扩建1空间的费用
+    warehouse: 
+      default_size: 100
+      expansion_costs: 10
+    # 默认冷库大小 和 扩建1空间的费用
+    refrigerate_warehouse: 
+      default_size: 100
+      expansion_costs: 20

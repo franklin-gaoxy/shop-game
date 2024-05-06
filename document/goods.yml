@@ -1,0 +1,36 @@
+goods:
+  - name: 苹果
+    start_price: 1
+    end_price: 10
+    commodity_size: 1
+    max_number: 1000
+    mini_number: 100
+    storage_date: 10
+    refrigerate: 0
+    max_price: 20
+    mini_price: 10
+  - name: 西红柿
+    start_price: 1
+    end_price: 10
+    commodity_size: 1
+    max_number: 1000
+    mini_number: 100
+    storage_date: 10
+    refrigerate: 0
+    max_price: 20
+    mini_price: 10
+  - name: 普通钢铁
+    start_price: 100
+    end_price: 800
+    commodity_size: 10
+    max_number: 3000
+    mini_number: 1000
+    storage_date: 1000
+    refrigerate: 0
+    max_price: 2000
+    mini_price: 1000
+opportunity:
+  - events_name: 因为战争原因,某件商品价格
+    critical_chance: 10
+    max_time: 30
+    mini_time: 5
