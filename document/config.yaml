@@ -6,7 +6,7 @@ config:
     address: 10.0.0.10
     port: 3306
     username: root
-    password: 1qaz@WSX
+    password: 12345678
   # 商品信息的文件
   goods:
     import_file: document/goods.yml
@@ -19,7 +19,7 @@ config:
     model: builtin
     other_information: 
       username: frank
-      password: 1qaz@WSX
+      password: 12345678
   # 初始化配置
   initialize_configuration:
     default_money: 100000
