@@ -1,0 +1,18 @@
+config:
+  server:
+    host: 0.0.0.0
+    port: 8080
+  database:
+    type: mysql
+    host: 192.168.0.12
+    port: 3306
+    user: root
+    password: 1qaz@WSX
+    dbname: trade_game_new
+  platform:
+    username: admin
+    password: 123456
+  user_config:
+    default_money: 1000000
+    default_warehouse: 1000
+    default_cold_storage: 1000

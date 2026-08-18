@@ -1,0 +1,164 @@
+# 初始化测试数据：默认配置、商品元数据、暴击事件元数据
+# storage_type: normal=仅普通仓库 cold=仅冷藏仓库 both=两者皆可
+# 过期天数: -1 表示永久，0 表示不适用
+# crit_min/crit_max: 暴击事件触发时价格涨幅区间(%)
+
+defaults:
+  default_money: 1000000        # 新用户初始金钱
+  default_warehouse: 1000       # 默认普通仓库大小
+  default_cold_storage: 1000    # 默认冷藏仓库大小
+  warehouse_price_normal: 10    # 普通仓库每单位空间每月价格
+  warehouse_price_cold: 20      # 冷藏仓库每单位空间每月价格
+  initial_key_max_uses: 10      # 初始注册密钥可用次数
+
+products:
+  - name: 西红柿                # 商品名称（唯一，用于注册/交易时标识）
+    category: 食物              # 商品种类（暴击事件可针对整个种类触发涨价）
+    storage_type: both          # 存储仓库类型：normal=仅普通仓库 cold=仅冷藏仓库 both=两者皆可
+    min_price: 5                # 每日随机价格的最低价（元）
+    max_price: 15               # 每日随机价格的最高价（元），每日价格在 [min_price, max_price] 内随机
+    size: 1                     # 单位商品占用的仓库空间大小（买入 n 个占用 n*size 空间）
+    normal_expire_days: 7       # 存放在普通仓库时的过期天数（买入日 + 7 天后过期清理）
+    cold_expire_days: 30        # 存放在冷藏仓库时的过期天数（-1 表示永久，0 表示该仓库不适用）
+    crit_min: 50                # 暴击事件触发时涨幅最小值（%），即最少涨 50%
+    crit_max: 200               # 暴击事件触发时涨幅最大值（%），涨幅在 [crit_min, crit_max] 内随机
+  - name: 土豆
+    category: 食物
+    storage_type: both
+    min_price: 3
+    max_price: 8
+    size: 1
+    normal_expire_days: 10
+    cold_expire_days: 30
+    crit_min: 40
+    crit_max: 150
+  - name: 汉堡
+    category: 食物
+    storage_type: both
+    min_price: 10
+    max_price: 25
+    size: 1
+    normal_expire_days: 3
+    cold_expire_days: 15
+    crit_min: 60
+    crit_max: 250
+  - name: 牛肉
+    category: 食物
+    storage_type: both
+    min_price: 30
+    max_price: 60
+    size: 2
+    normal_expire_days: 4
+    cold_expire_days: 20
+    crit_min: 60
+    crit_max: 300
+  - name: 冰淇淋
+    category: 食物
+    storage_type: cold
+    min_price: 8
+    max_price: 20
+    size: 1
+    normal_expire_days: 0
+    cold_expire_days: 90
+    crit_min: 80
+    crit_max: 300
+  - name: 疫苗
+    category: 医药
+    storage_type: cold
+    min_price: 500
+    max_price: 1000
+    size: 1
+    normal_expire_days: 0
+    cold_expire_days: 180
+    crit_min: 100
+    crit_max: 400
+  - name: 钢铁
+    category: 材料
+    storage_type: normal
+    min_price: 3000
+    max_price: 5000
+    size: 10
+    normal_expire_days: -1
+    cold_expire_days: 0
+    crit_min: 20
+    crit_max: 80
+  - name: 木材
+    category: 材料
+    storage_type: normal
+    min_price: 500
+    max_price: 1000
+    size: 5
+    normal_expire_days: -1
+    cold_expire_days: 0
+    crit_min: 30
+    crit_max: 120
+  - name: 塑料
+    category: 材料
+    storage_type: normal
+    min_price: 800
+    max_price: 1500
+    size: 3
+    normal_expire_days: -1
+    cold_expire_days: 0
+    crit_min: 25
+    crit_max: 100
+  - name: 水泥
+    category: 材料
+    storage_type: normal
+    min_price: 300
+    max_price: 600
+    size: 8
+    normal_expire_days: -1
+    cold_expire_days: 0
+    crit_min: 30
+    crit_max: 100
+  - name: 芯片
+    category: 科技
+    storage_type: normal
+    min_price: 100
+    max_price: 500
+    size: 1
+    normal_expire_days: -1
+    cold_expire_days: 0
+    crit_min: 50
+    crit_max: 300
+  - name: 锂电池
+    category: 科技
+    storage_type: normal
+    min_price: 200
+    max_price: 400
+    size: 2
+    normal_expire_days: 365
+    cold_expire_days: 0
+    crit_min: 40
+    crit_max: 200
+
+crit_events:
+  - description: 某地发生灾情，食物类商品普遍涨价
+    target_type: category
+    target_value: 食物
+    probability: 10
+  - description: 基建热潮，材料类商品需求大涨
+    target_type: category
+    target_value: 材料
+    probability: 7
+  - description: 芯片工厂罢工，芯片价格暴涨
+    target_type: product
+    target_value: 芯片
+    probability: 8
+  - description: 新能源汽车热销，锂电池供不应求
+    target_type: product
+    target_value: 锂电池
+    probability: 6
+  - description: 牛肉检疫出现问题，牛肉价格飙升
+    target_type: product
+    target_value: 牛肉
+    probability: 5
+  - description: 木材出口受限，木材价格大涨
+    target_type: product
+    target_value: 木材
+    probability: 9
+  - description: 流感爆发，疫苗价格暴涨
+    target_type: product
+    target_value: 疫苗
+    probability: 4
