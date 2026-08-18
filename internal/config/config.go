@@ -8,12 +8,13 @@ import (
 )
 
 // Config 与 config.yaml 结构对应
+// 注意：新用户默认金钱/仓库大小等业务默认值在 data/init_data.yaml 的 defaults 段配置，
+// 初始化时写入数据库 settings 表，此处不重复定义。
 type Config struct {
 	Config struct {
 		Server   ServerConfig   `yaml:"server"`
 		Database DatabaseConfig `yaml:"database"`
 		Platform PlatformConfig `yaml:"platform"`
-		User     UserConfig     `yaml:"user_config"`
 	} `yaml:"config"`
 }
 
@@ -34,12 +35,6 @@ type DatabaseConfig struct {
 type PlatformConfig struct {
 	Username string `yaml:"username"`
 	Password string `yaml:"password"`
-}
-
-type UserConfig struct {
-	DefaultMoney       float64 `yaml:"default_money"`
-	DefaultWarehouse   int64   `yaml:"default_warehouse"`
-	DefaultColdStorage int64   `yaml:"default_cold_storage"`
 }
 
 // Load 读取并解析配置文件，填充默认值

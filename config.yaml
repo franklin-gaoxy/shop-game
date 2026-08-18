@@ -12,7 +12,3 @@ config:
   platform:
     username: admin
     password: 123456
-  user_config:
-    default_money: 1000000
-    default_warehouse: 1000
-    default_cold_storage: 1000

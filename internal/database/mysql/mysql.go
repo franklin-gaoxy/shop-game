@@ -234,6 +234,10 @@ func (m *MySQL) ImportInitData(data *database.InitData, adminUser, adminPassword
 		if err := tx.Create(&admin).Error; err != nil {
 			return fmt.Errorf("创建管理员失败: %w", err)
 		}
+		// 为管理员生成第 1 天价格
+		if err := ensureDayPricesTx(tx, admin.ID, 1); err != nil {
+			return err
+		}
 
 		keyStr := d.InitialKey
 		if keyStr == "" {
@@ -344,15 +348,8 @@ func (m *MySQL) Register(username, passwordMD5, regKey string) (*model.User, err
 		}
 
 		// 生成第 1 天价格（不触发暴击）
-		var products []model.Product
-		if err := tx.Order("id").Find(&products).Error; err != nil {
+		if err := ensureDayPricesTx(tx, user.ID, 1); err != nil {
 			return err
-		}
-		for _, p := range products {
-			dp := model.DailyPrice{UserID: user.ID, Day: 1, ProductID: p.ID, Price: round2(randRange(p.MinPrice, p.MaxPrice))}
-			if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&dp).Error; err != nil {
-				return err
-			}
 		}
 		return nil
 	})
@@ -403,6 +400,10 @@ func (m *MySQL) GetTodayPrices(userID uint) (*database.ProductPriceResult, error
 		}
 		return nil, err
 	}
+	// 懒生成：若当日价格缺失（如初始化时创建的管理员）则补齐
+	if err := ensureDayPricesTx(m.db, userID, user.Day); err != nil {
+		return nil, err
+	}
 	products, err := m.ListProducts()
 	if err != nil {
 		return nil, err
@@ -431,6 +432,9 @@ func (m *MySQL) Buy(userID, productID uint, quantity, storageType int) (*databas
 	err := m.db.Transaction(func(tx *gorm.DB) error {
 		var user model.User
 		if err := lockUser(tx, &user, userID); err != nil {
+			return err
+		}
+		if err := ensureDayPricesTx(tx, userID, user.Day); err != nil {
 			return err
 		}
 		var product model.Product
@@ -558,6 +562,9 @@ func (m *MySQL) Sell(userID, productID uint, quantity, storageType int) (*databa
 	err := m.db.Transaction(func(tx *gorm.DB) error {
 		var user model.User
 		if err := lockUser(tx, &user, userID); err != nil {
+			return err
+		}
+		if err := ensureDayPricesTx(tx, userID, user.Day); err != nil {
 			return err
 		}
 		var product model.Product
@@ -924,6 +931,29 @@ func (m *MySQL) ListTransactions(userID uint, page, pageSize int) ([]model.Trans
 }
 
 // ---------- 内部工具 ----------
+
+// ensureDayPricesTx 确保某用户某天的每日价格存在：缺失则为全部商品随机生成（不触发暴击）。
+// 用于初始化建管理员、注册新用户，以及查询/交易时的懒生成补齐。
+func ensureDayPricesTx(tx *gorm.DB, userID uint, day int) error {
+	var cnt int64
+	if err := tx.Model(&model.DailyPrice{}).Where("user_id = ? AND day = ?", userID, day).Count(&cnt).Error; err != nil {
+		return err
+	}
+	if cnt > 0 {
+		return nil
+	}
+	var products []model.Product
+	if err := tx.Order("id").Find(&products).Error; err != nil {
+		return err
+	}
+	for _, p := range products {
+		dp := model.DailyPrice{UserID: userID, Day: day, ProductID: p.ID, Price: round2(randRange(p.MinPrice, p.MaxPrice))}
+		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&dp).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 func lockUser(tx *gorm.DB, user *model.User, userID uint) error {
 	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(user, userID).Error; err != nil {
