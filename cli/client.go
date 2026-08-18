@@ -103,6 +103,8 @@ type UserInfo struct {
 	Money     float64 `json:"money"`
 	Day       int     `json:"day"`
 	IsAdmin   bool    `json:"is_admin"`
+	Status    int     `json:"status"` // 1 启用 0 禁用
+	KeyID     uint    `json:"key_id"`
 	CreatedAt string  `json:"created_at"`
 }
 
@@ -366,6 +368,37 @@ func (c *Client) KeyUsers(id uint) ([]UserInfo, error) {
 		return nil, err
 	}
 	return out, nil
+}
+
+// ---------- 管理员：用户管理 ----------
+
+// UserListResp 用户分页响应
+type UserListResp struct {
+	List     []UserInfo `json:"list"`
+	Total    int64      `json:"total"`
+	Page     int        `json:"page"`
+	PageSize int        `json:"page_size"`
+}
+
+// ListUsers 查询全部用户（分页）
+func (c *Client) ListUsers(page, pageSize int) (*UserListResp, error) {
+	var out UserListResp
+	path := fmt.Sprintf("/api/admin/users?page=%d&page_size=%d", page, pageSize)
+	if err := c.do(http.MethodGet, path, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// SetUserStatus 禁用/启用用户（status: 0 禁用 1 启用）
+func (c *Client) SetUserStatus(id uint, status int) error {
+	body := map[string]int{"status": status}
+	return c.do(http.MethodPut, fmt.Sprintf("/api/admin/users/%d/status", id), body, nil)
+}
+
+// DeleteUser 删除用户
+func (c *Client) DeleteUser(id uint) error {
+	return c.do(http.MethodDelete, fmt.Sprintf("/api/admin/users/%d", id), nil, nil)
 }
 
 // ---------- 交易记录 ----------

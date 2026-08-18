@@ -105,7 +105,8 @@ func (a *App) mainMenu() {
 		exitChoice := 4
 		if a.user.IsAdmin {
 			fmt.Println("4. 密钥管理")
-			exitChoice = 5
+			fmt.Println("5. 用户管理")
+			exitChoice = 6
 		}
 		fmt.Printf("%d. 退出\n", exitChoice)
 		switch readChoice("请输入序号: ", 1, exitChoice) {
@@ -122,6 +123,8 @@ func (a *App) mainMenu() {
 				return
 			}
 		case 5:
+			a.userMenu()
+		case 6:
 			return
 		}
 	}
@@ -576,6 +579,111 @@ func (a *App) keyUsers() {
 	t.Print()
 }
 
+// ---------- 用户管理（仅 admin） ----------
+
+func (a *App) userMenu() {
+	for {
+		fmt.Println()
+		fmt.Println("--- 用户管理 ---")
+		fmt.Println("1. 查看用户列表")
+		fmt.Println("2. 禁用用户")
+		fmt.Println("3. 启用用户")
+		fmt.Println("4. 删除用户")
+		fmt.Println("5. 返回上一页")
+		switch readChoice("请输入序号: ", 1, 5) {
+		case 1:
+			a.listUsers()
+		case 2:
+			a.setUserStatus(0)
+		case 3:
+			a.setUserStatus(1)
+		case 4:
+			a.deleteUser()
+		case 5:
+			return
+		}
+	}
+}
+
+// listUsers 查看全部用户（分页）
+func (a *App) listUsers() {
+	const pageSize = 20
+	page := 1
+	for {
+		res, err := a.client.ListUsers(page, pageSize)
+		if err != nil {
+			fmt.Println("获取用户列表失败:", err)
+			return
+		}
+		totalPages := (int(res.Total) + pageSize - 1) / pageSize
+		if totalPages < 1 {
+			totalPages = 1
+		}
+		fmt.Printf("\n用户列表（共 %d 人，第 %d/%d 页）：\n", res.Total, page, totalPages)
+		if len(res.List) == 0 {
+			fmt.Println("（暂无用户）")
+		} else {
+			t := NewTable("用户ID", "用户名", "状态", "角色", "天数", "剩余金钱", "注册时间")
+			for _, u := range res.List {
+				role := "普通用户"
+				if u.IsAdmin {
+					role = "管理员"
+				}
+				t.AddRow(fmt.Sprint(u.ID), u.Username, userStatusName(u.Status), role,
+					fmt.Sprint(u.Day), fmt.Sprintf("%.2f", u.Money), formatTime(u.CreatedAt))
+			}
+			t.Print()
+		}
+		if page >= totalPages {
+			fmt.Println("（已是最后一页）")
+			return
+		}
+		s := readLine("输入页码查看更多（回车返回）: ")
+		if s == "" {
+			return
+		}
+		if n, err := strconv.Atoi(s); err == nil && n >= 1 && n <= totalPages {
+			page = n
+		} else {
+			fmt.Println("  页码无效")
+		}
+	}
+}
+
+// setUserStatus 禁用/启用用户（status: 0 禁用 1 启用）
+func (a *App) setUserStatus(status int) {
+	action := "禁用"
+	if status == 1 {
+		action = "启用"
+	}
+	fmt.Printf("\n--- %s用户 ---\n", action)
+	id := readIntRange("用户ID: ", 1, 0)
+	if !confirm(fmt.Sprintf("确认%s用户 %d? (y/n): ", action, id)) {
+		fmt.Println("已取消")
+		return
+	}
+	if err := a.client.SetUserStatus(uint(id), status); err != nil {
+		fmt.Printf("%s失败: %v\n", action, err)
+		return
+	}
+	fmt.Printf("%s成功\n", action)
+}
+
+// deleteUser 删除用户（关联数据一并删除）
+func (a *App) deleteUser() {
+	fmt.Println("\n--- 删除用户 ---")
+	id := readIntRange("用户ID: ", 1, 0)
+	if !confirm(fmt.Sprintf("确认删除用户 %d 及其全部数据? (y/n): ", id)) {
+		fmt.Println("已取消删除")
+		return
+	}
+	if err := a.client.DeleteUser(uint(id)); err != nil {
+		fmt.Println("删除失败:", err)
+		return
+	}
+	fmt.Println("删除成功")
+}
+
 // ---------- 展示辅助 ----------
 
 func tradeTypeName(t string) string {
@@ -608,6 +716,13 @@ func keyStatusName(s int) string {
 		return "启用"
 	}
 	return "禁用"
+}
+
+func userStatusName(s int) string {
+	if s == 1 {
+		return "正常"
+	}
+	return "已禁用"
 }
 
 // formatTime 截取 ISO 时间字符串的可读部分（2026-08-18T20:00:00+08:00 → 2026-08-18 20:00:00）

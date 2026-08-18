@@ -35,6 +35,11 @@ type Database interface {
 	DeleteRegKey(id uint) error
 	ListKeyUsers(keyID uint) ([]model.User, error)
 
+	// 用户管理（admin）
+	ListUsers(page, pageSize int) ([]model.User, int64, error)
+	SetUserStatus(operatorID, targetID uint, status int) error
+	DeleteUser(operatorID, targetID uint) error
+
 	// 商品与交易
 	ListProducts() ([]model.Product, error)
 	GetTodayPrices(userID uint) (*ProductPriceResult, error)

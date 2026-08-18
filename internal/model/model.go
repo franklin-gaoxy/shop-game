@@ -41,6 +41,7 @@ type User struct {
 	Money     float64   `json:"money"`
 	Day       int       `gorm:"column:day" json:"day"`
 	IsAdmin   bool      `json:"is_admin"`
+	Status    int       `json:"status"`                      // 1 启用 0 禁用（禁用后无法登录）
 	KeyID     uint      `gorm:"column:key_id" json:"key_id"` // 注册时使用的密钥
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`

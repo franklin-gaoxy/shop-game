@@ -46,6 +46,17 @@ func (s *sessionManager) remove(token string) {
 	delete(s.sessions, token)
 }
 
+// removeByUser 踢掉某用户的全部在线会话（禁用/删除用户时调用，即时生效）
+func (s *sessionManager) removeByUser(userID uint) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for token, sess := range s.sessions {
+		if sess.UserID == userID {
+			delete(s.sessions, token)
+		}
+	}
+}
+
 func randomToken() string {
 	b := make([]byte, 16)
 	_, _ = rand.Read(b)

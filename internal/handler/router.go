@@ -51,6 +51,9 @@ func NewRouter(db database.Database) *gin.Engine {
 		admin.GET("/keys", h.ListKeys)
 		admin.DELETE("/keys/:id", h.DeleteKey)
 		admin.GET("/keys/:id/users", h.KeyUsers)
+		admin.GET("/users", h.ListUsers)
+		admin.PUT("/users/:id/status", h.UpdateUserStatus)
+		admin.DELETE("/users/:id", h.DeleteUser)
 	}
 
 	return r

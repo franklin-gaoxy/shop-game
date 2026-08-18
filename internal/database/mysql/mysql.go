@@ -293,6 +293,9 @@ func (m *MySQL) LoginCheck(username, passwordMD5 string) (*model.User, error) {
 	if user.Password != passwordMD5 {
 		return nil, errors.New("用户名或密码错误")
 	}
+	if user.Status == 0 {
+		return nil, errors.New("账号已被禁用，请联系管理员")
+	}
 	return &user, nil
 }
 
@@ -417,6 +420,87 @@ func (m *MySQL) ListKeyUsers(keyID uint) ([]model.User, error) {
 		return nil, err
 	}
 	return users, nil
+}
+
+// ---------- 用户管理（admin） ----------
+
+// ListUsers 分页查询全部用户（单条 SQL 分页，无逐用户检查）
+func (m *MySQL) ListUsers(page, pageSize int) ([]model.User, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+	var total int64
+	if err := m.db.Model(&model.User{}).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var users []model.User
+	if err := m.db.Order("id").Limit(pageSize).Offset((page - 1) * pageSize).Find(&users).Error; err != nil {
+		return nil, 0, err
+	}
+	return users, total, nil
+}
+
+// checkUserTarget 校验管理员操作目标：不得操作自己、不得操作其他管理员
+func checkUserTarget(tx *gorm.DB, operatorID, targetID uint) (*model.User, error) {
+	if operatorID == targetID {
+		return nil, errors.New("不能对自己执行该操作")
+	}
+	var target model.User
+	if err := tx.First(&target, targetID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("用户不存在")
+		}
+		return nil, err
+	}
+	if target.IsAdmin {
+		return nil, errors.New("不能对管理员账号执行该操作")
+	}
+	return &target, nil
+}
+
+// SetUserStatus 禁用/启用用户
+func (m *MySQL) SetUserStatus(operatorID, targetID uint, status int) error {
+	if status != 0 && status != 1 {
+		return errors.New("status 仅支持 0=禁用 1=启用")
+	}
+	return m.db.Transaction(func(tx *gorm.DB) error {
+		target, err := checkUserTarget(tx, operatorID, targetID)
+		if err != nil {
+			return err
+		}
+		if target.Status == status {
+			if status == 0 {
+				return errors.New("该用户已是禁用状态")
+			}
+			return errors.New("该用户已是启用状态")
+		}
+		return tx.Model(&model.User{}).Where("id = ?", targetID).Update("status", status).Error
+	})
+}
+
+// DeleteUser 删除用户及其全部关联数据（仓库、每日价格、仓库购买、交易记录）
+func (m *MySQL) DeleteUser(operatorID, targetID uint) error {
+	return m.db.Transaction(func(tx *gorm.DB) error {
+		if _, err := checkUserTarget(tx, operatorID, targetID); err != nil {
+			return err
+		}
+		if err := tx.Where("user_id = ?", targetID).Delete(&model.WarehouseItem{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("user_id = ?", targetID).Delete(&model.DailyPrice{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("user_id = ?", targetID).Delete(&model.WarehousePurchase{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("user_id = ?", targetID).Delete(&model.Transaction{}).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&model.User{}, targetID).Error
+	})
 }
 
 // ---------- 商品与交易 ----------

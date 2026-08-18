@@ -26,6 +26,7 @@ func userView(u *model.User) gin.H {
 		"money":      u.Money,
 		"day":        u.Day,
 		"is_admin":   u.IsAdmin,
+		"status":     u.Status,
 		"key_id":     u.KeyID,
 		"created_at": u.CreatedAt,
 	}
