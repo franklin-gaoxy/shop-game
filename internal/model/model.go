@@ -91,11 +91,12 @@ func (CritEvent) TableName() string { return "crit_events" }
 
 // DailyPrice 每日商品价格表（保证同一天价格一致性）
 type DailyPrice struct {
-	ID        uint    `gorm:"primaryKey" json:"id"`
-	UserID    uint    `gorm:"column:user_id;uniqueIndex:idx_user_day_product" json:"user_id"`
-	Day       int     `gorm:"column:day;uniqueIndex:idx_user_day_product" json:"day"`
-	ProductID uint    `gorm:"column:product_id;uniqueIndex:idx_user_day_product" json:"product_id"`
-	Price     float64 `json:"price"`
+	ID          uint    `gorm:"primaryKey" json:"id"`
+	UserID      uint    `gorm:"column:user_id;uniqueIndex:idx_user_day_product" json:"user_id"`
+	Day         int     `gorm:"column:day;uniqueIndex:idx_user_day_product" json:"day"`
+	ProductID   uint    `gorm:"column:product_id;uniqueIndex:idx_user_day_product" json:"product_id"`
+	Price       float64 `json:"price"`
+	CritApplied bool    `gorm:"column:crit_applied" json:"crit_applied"` // 当日价格是否由暴击事件加成
 }
 
 func (DailyPrice) TableName() string { return "daily_prices" }

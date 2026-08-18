@@ -98,11 +98,12 @@ func (c *Client) Health() error {
 
 // UserInfo 用户信息
 type UserInfo struct {
-	ID       uint    `json:"id"`
-	Username string  `json:"username"`
-	Money    float64 `json:"money"`
-	Day      int     `json:"day"`
-	IsAdmin  bool    `json:"is_admin"`
+	ID        uint    `json:"id"`
+	Username  string  `json:"username"`
+	Money     float64 `json:"money"`
+	Day       int     `json:"day"`
+	IsAdmin   bool    `json:"is_admin"`
+	CreatedAt string  `json:"created_at"`
 }
 
 // authResp 登录/注册响应
@@ -127,7 +128,8 @@ type Product struct {
 // ProductPrice 商品 + 今日价格
 type ProductPrice struct {
 	Product
-	Price float64 `json:"price"`
+	Price       float64 `json:"price"`
+	CritApplied bool    `json:"crit_applied"` // 今日价格是否由暴击事件加成
 }
 
 // productsResp 商城响应
@@ -309,4 +311,84 @@ func (c *Client) WarehouseSpace() (*spaceResp, error) {
 func (c *Client) WarehouseBuy(storageType int, size, months int64) error {
 	body := map[string]interface{}{"storage_type": storageType, "size": size, "months": months}
 	return c.do(http.MethodPost, "/api/warehouse/buy", body, nil)
+}
+
+// Transactions 交易记录（分页）
+func (c *Client) Transactions(page, pageSize int) (*TxListResp, error) {
+	var out TxListResp
+	path := fmt.Sprintf("/api/transactions?page=%d&page_size=%d", page, pageSize)
+	if err := c.do(http.MethodGet, path, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ---------- 管理员：密钥管理 ----------
+
+// RegKey 注册密钥
+type RegKey struct {
+	ID        uint   `json:"id"`
+	Key       string `json:"key"`
+	MaxUses   int    `json:"max_uses"`
+	UsedCount int    `json:"used_count"`
+	CreatedBy string `json:"created_by"`
+	Status    int    `json:"status"`
+}
+
+// ListKeys 查询全部密钥
+func (c *Client) ListKeys() ([]RegKey, error) {
+	var out []RegKey
+	if err := c.do(http.MethodGet, "/api/admin/keys", nil, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// CreateKey 创建密钥
+func (c *Client) CreateKey(maxUses int) (*RegKey, error) {
+	var out RegKey
+	body := map[string]int{"max_uses": maxUses}
+	if err := c.do(http.MethodPost, "/api/admin/keys", body, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DeleteKey 删除密钥
+func (c *Client) DeleteKey(id uint) error {
+	return c.do(http.MethodDelete, fmt.Sprintf("/api/admin/keys/%d", id), nil, nil)
+}
+
+// KeyUsers 查询密钥绑定的用户
+func (c *Client) KeyUsers(id uint) ([]UserInfo, error) {
+	var out []UserInfo
+	if err := c.do(http.MethodGet, fmt.Sprintf("/api/admin/keys/%d/users", id), nil, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// ---------- 交易记录 ----------
+
+// Transaction 单条交易记录
+type Transaction struct {
+	ID           uint    `json:"id"`
+	Day          int     `json:"day"`
+	Type         string  `json:"type"`
+	Direction    int     `json:"direction"`
+	ProductID    uint    `json:"product_id"`
+	ProductName  string  `json:"product_name"`
+	Quantity     int     `json:"quantity"`
+	UnitPrice    float64 `json:"unit_price"`
+	Amount       float64 `json:"amount"`
+	BalanceAfter float64 `json:"balance_after"`
+	CreatedAt    string  `json:"created_at"`
+}
+
+// TxListResp 交易记录分页响应
+type TxListResp struct {
+	List     []Transaction `json:"list"`
+	Total    int64         `json:"total"`
+	Page     int           `json:"page"`
+	PageSize int           `json:"page_size"`
 }

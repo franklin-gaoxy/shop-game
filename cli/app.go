@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -101,8 +102,13 @@ func (a *App) mainMenu() {
 		fmt.Println("1. 交易")
 		fmt.Println("2. 明天")
 		fmt.Println("3. 特殊商品")
-		fmt.Println("4. 退出")
-		switch readChoice("请输入序号: ", 1, 4) {
+		exitChoice := 4
+		if a.user.IsAdmin {
+			fmt.Println("4. 密钥管理")
+			exitChoice = 5
+		}
+		fmt.Printf("%d. 退出\n", exitChoice)
+		switch readChoice("请输入序号: ", 1, exitChoice) {
 		case 1:
 			a.tradeMenu()
 		case 2:
@@ -110,6 +116,12 @@ func (a *App) mainMenu() {
 		case 3:
 			a.specialMenu()
 		case 4:
+			if a.user.IsAdmin {
+				a.keyMenu()
+			} else {
+				return
+			}
+		case 5:
 			return
 		}
 	}
@@ -132,8 +144,9 @@ func (a *App) tradeMenu() {
 		fmt.Println("2. 购买")
 		fmt.Println("3. 卖出")
 		fmt.Println("4. 查看仓库")
-		fmt.Println("5. 返回上一页")
-		switch readChoice("请输入序号: ", 1, 5) {
+		fmt.Println("5. 交易记录")
+		fmt.Println("6. 返回上一页")
+		switch readChoice("请输入序号: ", 1, 6) {
 		case 1:
 			a.listProducts()
 		case 2:
@@ -143,7 +156,59 @@ func (a *App) tradeMenu() {
 		case 4:
 			a.listWarehouse()
 		case 5:
+			a.listTransactions()
+		case 6:
 			return
+		}
+	}
+}
+
+// listTransactions 交易记录（分页展示，输入页码翻页，回车返回）
+func (a *App) listTransactions() {
+	const pageSize = 20
+	page := 1
+	for {
+		res, err := a.client.Transactions(page, pageSize)
+		if err != nil {
+			fmt.Println("获取交易记录失败:", err)
+			return
+		}
+		totalPages := (int(res.Total) + pageSize - 1) / pageSize
+		if totalPages < 1 {
+			totalPages = 1
+		}
+		fmt.Printf("\n交易记录（共 %d 条，第 %d/%d 页）：\n", res.Total, page, totalPages)
+		if len(res.List) == 0 {
+			fmt.Println("（暂无交易记录）")
+		} else {
+			t := NewTable("ID", "天数", "类型", "收支", "商品/事项", "数量", "单价", "金额", "交易后余额")
+			for _, tx := range res.List {
+				t.AddRow(
+					fmt.Sprint(tx.ID),
+					fmt.Sprint(tx.Day),
+					tradeTypeName(tx.Type),
+					directionName(tx.Direction),
+					tx.ProductName,
+					fmt.Sprint(tx.Quantity),
+					fmt.Sprintf("%.2f", tx.UnitPrice),
+					fmt.Sprintf("%.2f", tx.Amount),
+					fmt.Sprintf("%.2f", tx.BalanceAfter),
+				)
+			}
+			t.Print()
+		}
+		if page >= totalPages {
+			fmt.Println("（已是最后一页）")
+			return
+		}
+		s := readLine("输入页码查看更多（回车返回）: ")
+		if s == "" {
+			return
+		}
+		if n, err := strconv.Atoi(s); err == nil && n >= 1 && n <= totalPages {
+			page = n
+		} else {
+			fmt.Println("  页码无效")
 		}
 	}
 }
@@ -156,13 +221,18 @@ func (a *App) listProducts() *productsResp {
 		return nil
 	}
 	fmt.Printf("\n第 %d 天 商城商品：\n", res.Day)
-	t := NewTable("ID", "商品", "种类", "今日价格", "占用空间", "存储仓库", "普通过期", "冷藏过期")
+	t := NewTable("ID", "商品", "种类", "今日价格", "暴击", "占用空间", "存储仓库", "普通过期", "冷藏过期")
 	for _, p := range res.Products {
+		crit := "-"
+		if p.CritApplied {
+			crit = "是"
+		}
 		t.AddRow(
 			fmt.Sprint(p.ID),
 			p.Name,
 			p.Category,
 			fmt.Sprintf("%.2f", p.Price),
+			crit,
 			fmt.Sprint(p.Size),
 			storageTypeName(p.StorageType),
 			expireDaysText(p.NormalExpireDays),
@@ -413,7 +483,140 @@ func (a *App) buySpace(storage int) {
 	fmt.Printf("购买成功：%s %d 空间 × %d 个月，支出 %.2f\n", name, size, months, cost)
 }
 
+// ---------- 密钥管理（仅 admin） ----------
+
+func (a *App) keyMenu() {
+	for {
+		fmt.Println()
+		fmt.Println("--- 密钥管理 ---")
+		fmt.Println("1. 查询密钥")
+		fmt.Println("2. 添加密钥")
+		fmt.Println("3. 删除密钥")
+		fmt.Println("4. 查询密钥绑定用户")
+		fmt.Println("5. 返回上一页")
+		switch readChoice("请输入序号: ", 1, 5) {
+		case 1:
+			a.listKeys()
+		case 2:
+			a.createKey()
+		case 3:
+			a.deleteKey()
+		case 4:
+			a.keyUsers()
+		case 5:
+			return
+		}
+	}
+}
+
+// listKeys 查询全部密钥
+func (a *App) listKeys() []RegKey {
+	keys, err := a.client.ListKeys()
+	if err != nil {
+		fmt.Println("获取密钥失败:", err)
+		return nil
+	}
+	fmt.Println("\n密钥列表：")
+	if len(keys) == 0 {
+		fmt.Println("（暂无密钥）")
+		return keys
+	}
+	t := NewTable("ID", "密钥", "可用次数", "已用次数", "状态", "创建者")
+	for _, k := range keys {
+		t.AddRow(fmt.Sprint(k.ID), k.Key, fmt.Sprint(k.MaxUses), fmt.Sprint(k.UsedCount), keyStatusName(k.Status), k.CreatedBy)
+	}
+	t.Print()
+	return keys
+}
+
+// createKey 添加密钥
+func (a *App) createKey() {
+	fmt.Println("\n--- 添加密钥 ---")
+	maxUses := readIntRange("可用次数（默认 10，直接输入数字）: ", 1, 0)
+	k, err := a.client.CreateKey(int(maxUses))
+	if err != nil {
+		fmt.Println("添加密钥失败:", err)
+		return
+	}
+	fmt.Printf("添加成功：ID=%d 密钥=%s 可用次数=%d\n", k.ID, k.Key, k.MaxUses)
+}
+
+// deleteKey 删除密钥
+func (a *App) deleteKey() {
+	fmt.Println("\n--- 删除密钥 ---")
+	id := readIntRange("要删除的密钥ID: ", 1, 0)
+	if !confirm(fmt.Sprintf("确认删除密钥 %d? (y/n): ", id)) {
+		fmt.Println("已取消删除")
+		return
+	}
+	if err := a.client.DeleteKey(uint(id)); err != nil {
+		fmt.Println("删除失败:", err)
+		return
+	}
+	fmt.Println("删除成功")
+}
+
+// keyUsers 查询密钥绑定的用户
+func (a *App) keyUsers() {
+	fmt.Println("\n--- 查询密钥绑定用户 ---")
+	id := readIntRange("密钥ID: ", 1, 0)
+	users, err := a.client.KeyUsers(uint(id))
+	if err != nil {
+		fmt.Println("查询失败:", err)
+		return
+	}
+	if len(users) == 0 {
+		fmt.Println("该密钥暂无绑定用户")
+		return
+	}
+	t := NewTable("用户ID", "用户名", "当前天数", "剩余金钱", "注册时间")
+	for _, u := range users {
+		t.AddRow(fmt.Sprint(u.ID), u.Username, fmt.Sprint(u.Day), fmt.Sprintf("%.2f", u.Money), formatTime(u.CreatedAt))
+	}
+	t.Print()
+}
+
 // ---------- 展示辅助 ----------
+
+func tradeTypeName(t string) string {
+	switch t {
+	case "buy":
+		return "买入"
+	case "sell":
+		return "卖出"
+	case "expire":
+		return "过期销毁"
+	case "warehouse":
+		return "购买仓库"
+	}
+	return t
+}
+
+// directionName 收支方向：1 支出 2 收入
+func directionName(d int) string {
+	switch d {
+	case 1:
+		return "支出"
+	case 2:
+		return "收入"
+	}
+	return "未知"
+}
+
+func keyStatusName(s int) string {
+	if s == 1 {
+		return "启用"
+	}
+	return "禁用"
+}
+
+// formatTime 截取 ISO 时间字符串的可读部分（2026-08-18T20:00:00+08:00 → 2026-08-18 20:00:00）
+func formatTime(s string) string {
+	if len(s) >= 19 {
+		return strings.Replace(s[:19], "T", " ", 1)
+	}
+	return s
+}
 
 func storageTypeName(t int) string {
 	switch t {

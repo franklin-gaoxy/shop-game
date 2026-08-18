@@ -32,6 +32,8 @@ type Database interface {
 	Register(username, passwordMD5, regKey string) (*model.User, error)
 	CreateRegKey(maxUses int, createdBy string) (*model.RegKey, error)
 	ListRegKeys() ([]model.RegKey, error)
+	DeleteRegKey(id uint) error
+	ListKeyUsers(keyID uint) ([]model.User, error)
 
 	// 商品与交易
 	ListProducts() ([]model.Product, error)
@@ -114,7 +116,8 @@ type InitData struct {
 // ProductPrice 商品 + 当日价格
 type ProductPrice struct {
 	model.Product
-	Price float64 `json:"price"`
+	Price       float64 `json:"price"`
+	CritApplied bool    `json:"crit_applied"` // 当日价格是否由暴击事件加成
 }
 
 // ProductPriceResult 当日商城价格

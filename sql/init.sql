@@ -74,6 +74,7 @@ CREATE TABLE daily_prices (
   `day` INT NOT NULL DEFAULT 1 COMMENT '天数',
   product_id BIGINT UNSIGNED NOT NULL,
   price DOUBLE NOT NULL DEFAULT 0 COMMENT '当日随机价格',
+  crit_applied TINYINT NOT NULL DEFAULT 0 COMMENT '当日价格是否由暴击事件加成: 1 是 0 否',
   PRIMARY KEY (id),
   UNIQUE KEY uk_daily_prices (user_id, `day`, product_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='每日商品价格表';

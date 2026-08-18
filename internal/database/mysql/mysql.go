@@ -382,6 +382,43 @@ func (m *MySQL) ListRegKeys() ([]model.RegKey, error) {
 	return keys, nil
 }
 
+// DeleteRegKey 删除密钥：已被用户用于注册的密钥不允许删除（避免用户注册来源悬空）
+func (m *MySQL) DeleteRegKey(id uint) error {
+	return m.db.Transaction(func(tx *gorm.DB) error {
+		var k model.RegKey
+		if err := tx.First(&k, id).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return errors.New("密钥不存在")
+			}
+			return err
+		}
+		var cnt int64
+		if err := tx.Model(&model.User{}).Where("key_id = ?", id).Count(&cnt).Error; err != nil {
+			return err
+		}
+		if cnt > 0 {
+			return fmt.Errorf("该密钥已被 %d 个用户用于注册，无法删除", cnt)
+		}
+		return tx.Delete(&model.RegKey{}, id).Error
+	})
+}
+
+// ListKeyUsers 查询使用某密钥注册的用户列表
+func (m *MySQL) ListKeyUsers(keyID uint) ([]model.User, error) {
+	var k model.RegKey
+	if err := m.db.First(&k, keyID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("密钥不存在")
+		}
+		return nil, err
+	}
+	var users []model.User
+	if err := m.db.Where("key_id = ?", keyID).Order("id").Find(&users).Error; err != nil {
+		return nil, err
+	}
+	return users, nil
+}
+
 // ---------- 商品与交易 ----------
 
 func (m *MySQL) ListProducts() ([]model.Product, error) {
@@ -412,13 +449,14 @@ func (m *MySQL) GetTodayPrices(userID uint) (*database.ProductPriceResult, error
 	if err := m.db.Where("user_id = ? AND day = ?", userID, user.Day).Find(&prices).Error; err != nil {
 		return nil, err
 	}
-	pm := map[uint]float64{}
+	pm := map[uint]model.DailyPrice{}
 	for _, p := range prices {
-		pm[p.ProductID] = p.Price
+		pm[p.ProductID] = p
 	}
 	res := &database.ProductPriceResult{Day: user.Day, Products: []database.ProductPrice{}}
 	for _, p := range products {
-		res.Products = append(res.Products, database.ProductPrice{Product: p, Price: pm[p.ID]})
+		dp := pm[p.ID]
+		res.Products = append(res.Products, database.ProductPrice{Product: p, Price: dp.Price, CritApplied: dp.CritApplied})
 	}
 	return res, nil
 }
@@ -680,6 +718,7 @@ func (m *MySQL) AdvanceDay(userID uint) (*database.AdvanceResult, error) {
 
 		// 1. 在 [min,max] 区间为每个商品生成随机价格
 		prices := map[uint]float64{}
+		critHit := map[uint]bool{} // 当日被暴击加成的商品
 		for _, p := range products {
 			prices[p.ID] = round2(randRange(p.MinPrice, p.MaxPrice))
 		}
@@ -705,6 +744,7 @@ func (m *MySQL) AdvanceDay(userID uint) (*database.AdvanceResult, error) {
 				// 涨幅在商品自身 [crit_min, crit_max] 区间取随机值（百分比）
 				inc := randRange(p.CritMin, p.CritMax)
 				prices[p.ID] = round2(prices[p.ID] * (1 + inc/100.0))
+				critHit[p.ID] = true
 				info.Products = append(info.Products, p.Name)
 			}
 			if len(info.Products) > 0 {
@@ -712,14 +752,14 @@ func (m *MySQL) AdvanceDay(userID uint) (*database.AdvanceResult, error) {
 			}
 		}
 
-		// 3. 写入每日价格表
+		// 3. 写入每日价格表（含暴击标记）
 		res.Prices = []database.ProductPrice{}
 		for _, p := range products {
-			dp := model.DailyPrice{UserID: userID, Day: newDay, ProductID: p.ID, Price: prices[p.ID]}
+			dp := model.DailyPrice{UserID: userID, Day: newDay, ProductID: p.ID, Price: prices[p.ID], CritApplied: critHit[p.ID]}
 			if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&dp).Error; err != nil {
 				return err
 			}
-			res.Prices = append(res.Prices, database.ProductPrice{Product: p, Price: prices[p.ID]})
+			res.Prices = append(res.Prices, database.ProductPrice{Product: p, Price: prices[p.ID], CritApplied: critHit[p.ID]})
 		}
 
 		// 4. 清理过期商品（expire_day 为最后有效天，进入新的一天后失效）
