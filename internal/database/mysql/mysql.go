@@ -178,6 +178,9 @@ func (m *MySQL) ImportInitData(data *database.InitData, adminUser, adminPassword
 		if p.CritMin < 0 || p.CritMax < p.CritMin {
 			return "", fmt.Errorf("商品 %s 的暴击区间不合法", p.Name)
 		}
+		if p.MinStock < 0 || p.MaxStock < p.MinStock {
+			return "", fmt.Errorf("商品 %s 的存货量区间不合法（需满足 min_stock >= 0 且 max_stock >= min_stock）", p.Name)
+		}
 	}
 	for i, e := range data.CritEvents {
 		if e.Description == "" {
@@ -259,6 +262,7 @@ func (m *MySQL) ImportInitData(data *database.InitData, adminUser, adminPassword
 				MinPrice: p.MinPrice, MaxPrice: p.MaxPrice, Size: p.Size,
 				NormalExpireDays: p.NormalExpireDays, ColdExpireDays: p.ColdExpireDays,
 				CritMin: p.CritMin, CritMax: p.CritMax,
+				MaxStock: p.MaxStock, MinStock: p.MinStock,
 			}
 			if err := tx.Create(&np).Error; err != nil {
 				return fmt.Errorf("导入商品 %s 失败: %w", p.Name, err)
@@ -537,10 +541,22 @@ func (m *MySQL) GetTodayPrices(userID uint) (*database.ProductPriceResult, error
 	for _, p := range prices {
 		pm[p.ProductID] = p
 	}
+	// 当日已买入数量（用于计算剩余限购）
+	bought, err := boughtTodayMap(m.db, userID, user.Day)
+	if err != nil {
+		return nil, err
+	}
 	res := &database.ProductPriceResult{Day: user.Day, Products: []database.ProductPrice{}}
 	for _, p := range products {
 		dp := pm[p.ID]
-		res.Products = append(res.Products, database.ProductPrice{Product: p, Price: dp.Price, CritApplied: dp.CritApplied})
+		pp := database.ProductPrice{Product: p, Price: dp.Price, CritApplied: dp.CritApplied, StockLimit: dp.StockLimit, StockBought: bought[p.ID]}
+		if dp.StockLimit > 0 {
+			pp.StockRemaining = dp.StockLimit - bought[p.ID]
+			if pp.StockRemaining < 0 {
+				pp.StockRemaining = 0
+			}
+		}
+		res.Products = append(res.Products, pp)
 	}
 	return res, nil
 }
@@ -592,6 +608,20 @@ func (m *MySQL) Buy(userID, productID uint, quantity, storageType int) (*databas
 				return errors.New("今日价格尚未生成")
 			}
 			return err
+		}
+
+		// 当日限购校验：当日已购 + 本次数量不能超过当日限购上限（stock_limit 为 0 表示不限，兼容历史数据）
+		if dp.StockLimit > 0 {
+			bought, err := boughtTodayMap(tx, userID, user.Day)
+			if err != nil {
+				return err
+			}
+			if remaining := dp.StockLimit - bought[productID]; bought[productID]+quantity > dp.StockLimit {
+				if remaining < 0 {
+					remaining = 0
+				}
+				return fmt.Errorf("超出当日限购数量：今日限购 %d，已购 %d，剩余可购 %d，明天再来吧", dp.StockLimit, bought[productID], remaining)
+			}
 		}
 
 		total := round2(dp.Price * float64(quantity))
@@ -800,11 +830,13 @@ func (m *MySQL) AdvanceDay(userID uint) (*database.AdvanceResult, error) {
 			return err
 		}
 
-		// 1. 在 [min,max] 区间为每个商品生成随机价格
+		// 1. 在 [min,max] 区间为每个商品生成随机价格，并在 [min_stock, max_stock] 区间生成当日限购数量
 		prices := map[uint]float64{}
+		stockLimits := map[uint]int{}
 		critHit := map[uint]bool{} // 当日被暴击加成的商品
 		for _, p := range products {
 			prices[p.ID] = round2(randRange(p.MinPrice, p.MaxPrice))
+			stockLimits[p.ID] = randIntRange(p.MinStock, p.MaxStock)
 		}
 
 		// 2. 暴击事件判定：生成 0-99 随机数，小于概率则触发
@@ -836,14 +868,17 @@ func (m *MySQL) AdvanceDay(userID uint) (*database.AdvanceResult, error) {
 			}
 		}
 
-		// 3. 写入每日价格表（含暴击标记）
+		// 3. 写入每日价格表（含暴击标记与当日限购数量）
 		res.Prices = []database.ProductPrice{}
 		for _, p := range products {
-			dp := model.DailyPrice{UserID: userID, Day: newDay, ProductID: p.ID, Price: prices[p.ID], CritApplied: critHit[p.ID]}
+			dp := model.DailyPrice{UserID: userID, Day: newDay, ProductID: p.ID, Price: prices[p.ID], StockLimit: stockLimits[p.ID], CritApplied: critHit[p.ID]}
 			if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&dp).Error; err != nil {
 				return err
 			}
-			res.Prices = append(res.Prices, database.ProductPrice{Product: p, Price: prices[p.ID], CritApplied: critHit[p.ID]})
+			res.Prices = append(res.Prices, database.ProductPrice{
+				Product: p, Price: prices[p.ID], CritApplied: critHit[p.ID],
+				StockLimit: stockLimits[p.ID], StockBought: 0, StockRemaining: stockLimits[p.ID],
+			})
 		}
 
 		// 4. 清理过期商品（expire_day 为最后有效天，进入新的一天后失效）
@@ -1056,7 +1091,7 @@ func (m *MySQL) ListTransactions(userID uint, page, pageSize int) ([]model.Trans
 
 // ---------- 内部工具 ----------
 
-// ensureDayPricesTx 确保某用户某天的每日价格存在：缺失则为全部商品随机生成（不触发暴击）。
+// ensureDayPricesTx 确保某用户某天的每日价格存在：缺失则为全部商品随机生成价格与当日限购数量（不触发暴击）。
 // 用于初始化建管理员、注册新用户，以及查询/交易时的懒生成补齐。
 func ensureDayPricesTx(tx *gorm.DB, userID uint, day int) error {
 	var cnt int64
@@ -1071,12 +1106,35 @@ func ensureDayPricesTx(tx *gorm.DB, userID uint, day int) error {
 		return err
 	}
 	for _, p := range products {
-		dp := model.DailyPrice{UserID: userID, Day: day, ProductID: p.ID, Price: round2(randRange(p.MinPrice, p.MaxPrice))}
+		dp := model.DailyPrice{
+			UserID: userID, Day: day, ProductID: p.ID,
+			Price: round2(randRange(p.MinPrice, p.MaxPrice)),
+			StockLimit: randIntRange(p.MinStock, p.MaxStock),
+		}
 		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&dp).Error; err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// boughtTodayMap 汇总某用户某天各商品已买入数量（用于计算当日剩余限购）
+func boughtTodayMap(tx *gorm.DB, userID uint, day int) (map[uint]int, error) {
+	var rows []struct {
+		ProductID uint
+		Total     int64
+	}
+	if err := tx.Model(&model.Transaction{}).
+		Select("product_id, COALESCE(SUM(quantity), 0) AS total").
+		Where("user_id = ? AND day = ? AND type = ?", userID, day, model.TradeTypeBuy).
+		Group("product_id").Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	m := map[uint]int{}
+	for _, r := range rows {
+		m[r.ProductID] = int(r.Total)
+	}
+	return m, nil
 }
 
 func lockUser(tx *gorm.DB, user *model.User, userID uint) error {
@@ -1167,6 +1225,14 @@ func randRange(min, max float64) float64 {
 		return min
 	}
 	return min + rand.Float64()*(max-min)
+}
+
+// randIntRange 在 [min, max] 闭区间内取随机整数
+func randIntRange(min, max int) int {
+	if max <= min {
+		return min
+	}
+	return min + rand.Intn(max-min+1)
 }
 
 func round2(v float64) float64 {

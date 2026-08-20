@@ -101,6 +101,8 @@ type InitProduct struct {
 	ColdExpireDays   int     `yaml:"cold_expire_days"`
 	CritMin          float64 `yaml:"crit_min"`
 	CritMax          float64 `yaml:"crit_max"`
+	MaxStock         int     `yaml:"max_stock"` // 单日最高存货量（每日限购上限随机区间最大值）
+	MinStock         int     `yaml:"min_stock"` // 单日最低存货量（每日限购上限随机区间最小值）
 }
 
 type InitCritEvent struct {
@@ -121,8 +123,11 @@ type InitData struct {
 // ProductPrice 商品 + 当日价格
 type ProductPrice struct {
 	model.Product
-	Price       float64 `json:"price"`
-	CritApplied bool    `json:"crit_applied"` // 当日价格是否由暴击事件加成
+	Price          float64 `json:"price"`
+	CritApplied    bool    `json:"crit_applied"`   // 当日价格是否由暴击事件加成
+	StockLimit     int     `json:"stock_limit"`     // 当日可购买数量上限（0 表示不限）
+	StockBought    int     `json:"stock_bought"`    // 当日已购买数量
+	StockRemaining int     `json:"stock_remaining"` // 当日剩余可购买数量（stock_limit 为 0 表示不限时，此值为 0 无意义）
 }
 
 // ProductPriceResult 当日商城价格

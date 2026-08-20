@@ -2,6 +2,7 @@
 # storage_type: normal=仅普通仓库 cold=仅冷藏仓库 both=两者皆可
 # 过期天数: -1 表示永久，0 表示不适用
 # crit_min/crit_max: 暴击事件触发时价格涨幅区间(%)
+# max_stock/min_stock: 单日最高/最低存货量，每天在两者之间取随机值作为当日购买数量上限
 
 defaults:
   default_money: 1000000        # 新用户初始金钱
@@ -22,6 +23,8 @@ products:
     cold_expire_days: 30        # 存放在冷藏仓库时的过期天数（-1 表示永久，0 表示该仓库不适用）
     crit_min: 50                # 暴击事件触发时涨幅最小值（%），即最少涨 50%
     crit_max: 200               # 暴击事件触发时涨幅最大值（%），涨幅在 [crit_min, crit_max] 内随机
+    max_stock: 1000             # 单日最高存货量：每天购买上限在 [min_stock, max_stock] 内随机
+    min_stock: 200              # 单日最低存货量
   - name: 土豆
     category: 食物
     storage_type: both
@@ -32,6 +35,8 @@ products:
     cold_expire_days: 30
     crit_min: 40
     crit_max: 150
+    max_stock: 1500
+    min_stock: 300
   - name: 汉堡
     category: 食物
     storage_type: both
@@ -42,6 +47,8 @@ products:
     cold_expire_days: 15
     crit_min: 60
     crit_max: 250
+    max_stock: 500
+    min_stock: 100
   - name: 牛肉
     category: 食物
     storage_type: both
@@ -52,6 +59,8 @@ products:
     cold_expire_days: 20
     crit_min: 60
     crit_max: 300
+    max_stock: 300
+    min_stock: 50
   - name: 冰淇淋
     category: 食物
     storage_type: cold
@@ -62,6 +71,8 @@ products:
     cold_expire_days: 90
     crit_min: 80
     crit_max: 300
+    max_stock: 600
+    min_stock: 100
   - name: 疫苗
     category: 医药
     storage_type: cold
@@ -72,6 +83,8 @@ products:
     cold_expire_days: 180
     crit_min: 100
     crit_max: 400
+    max_stock: 50
+    min_stock: 10
   - name: 钢铁
     category: 材料
     storage_type: normal
@@ -82,6 +95,8 @@ products:
     cold_expire_days: 0
     crit_min: 20
     crit_max: 80
+    max_stock: 100
+    min_stock: 20
   - name: 木材
     category: 材料
     storage_type: normal
@@ -92,6 +107,8 @@ products:
     cold_expire_days: 0
     crit_min: 30
     crit_max: 120
+    max_stock: 200
+    min_stock: 50
   - name: 塑料
     category: 材料
     storage_type: normal
@@ -102,6 +119,8 @@ products:
     cold_expire_days: 0
     crit_min: 25
     crit_max: 100
+    max_stock: 150
+    min_stock: 30
   - name: 水泥
     category: 材料
     storage_type: normal
@@ -112,6 +131,8 @@ products:
     cold_expire_days: 0
     crit_min: 30
     crit_max: 100
+    max_stock: 120
+    min_stock: 30
   - name: 芯片
     category: 科技
     storage_type: normal
@@ -122,6 +143,8 @@ products:
     cold_expire_days: 0
     crit_min: 50
     crit_max: 300
+    max_stock: 200
+    min_stock: 50
   - name: 锂电池
     category: 科技
     storage_type: normal
@@ -132,6 +155,8 @@ products:
     cold_expire_days: 0
     crit_min: 40
     crit_max: 200
+    max_stock: 250
+    min_stock: 50
 
 crit_events:
   - description: 某地发生灾情，食物类商品普遍涨价

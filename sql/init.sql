@@ -53,6 +53,8 @@ CREATE TABLE products (
   cold_expire_days INT NOT NULL DEFAULT -1 COMMENT '冷藏仓库过期天数，-1 永久',
   crit_min DOUBLE NOT NULL DEFAULT 0 COMMENT '暴击涨幅最小值(%)',
   crit_max DOUBLE NOT NULL DEFAULT 0 COMMENT '暴击涨幅最大值(%)',
+  max_stock INT NOT NULL DEFAULT 0 COMMENT '单日最高存货量（每日限购上限随机区间最大值）',
+  min_stock INT NOT NULL DEFAULT 0 COMMENT '单日最低存货量（每日限购上限随机区间最小值）',
   PRIMARY KEY (id),
   UNIQUE KEY uk_products_name (name),
   KEY idx_products_category (category)
@@ -68,13 +70,14 @@ CREATE TABLE crit_events (
   PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='暴击事件元数据表';
 
--- 每日商品价格表（保证同一天价格一致性）
+-- 每日商品价格表（保证同一天价格与限购数量一致性）
 CREATE TABLE daily_prices (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   user_id BIGINT UNSIGNED NOT NULL,
   `day` INT NOT NULL DEFAULT 1 COMMENT '天数',
   product_id BIGINT UNSIGNED NOT NULL,
   price DOUBLE NOT NULL DEFAULT 0 COMMENT '当日随机价格',
+  stock_limit INT NOT NULL DEFAULT 0 COMMENT '当日可购买数量上限（由商品最高/最低存货量随机生成，0 表示不限）',
   crit_applied TINYINT NOT NULL DEFAULT 0 COMMENT '当日价格是否由暴击事件加成: 1 是 0 否',
   PRIMARY KEY (id),
   UNIQUE KEY uk_daily_prices (user_id, `day`, product_id)

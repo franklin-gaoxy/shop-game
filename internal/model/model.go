@@ -75,6 +75,8 @@ type Product struct {
 	ColdExpireDays   int     `gorm:"column:cold_expire_days" json:"cold_expire_days"`     // 冷藏仓库过期天数，-1 永久
 	CritMin          float64 `gorm:"column:crit_min" json:"crit_min"`                     // 暴击涨幅最小值(%)
 	CritMax          float64 `gorm:"column:crit_max" json:"crit_max"`                     // 暴击涨幅最大值(%)
+	MaxStock         int     `gorm:"column:max_stock" json:"max_stock"`                   // 单日最高存货量（每日限购上限随机区间的最大值）
+	MinStock         int     `gorm:"column:min_stock" json:"min_stock"`                   // 单日最低存货量（每日限购上限随机区间的最小值）
 }
 
 func (Product) TableName() string { return "products" }
@@ -90,13 +92,14 @@ type CritEvent struct {
 
 func (CritEvent) TableName() string { return "crit_events" }
 
-// DailyPrice 每日商品价格表（保证同一天价格一致性）
+// DailyPrice 每日商品价格表（保证同一天价格与限购数量一致性）
 type DailyPrice struct {
 	ID          uint    `gorm:"primaryKey" json:"id"`
 	UserID      uint    `gorm:"column:user_id;uniqueIndex:idx_user_day_product" json:"user_id"`
 	Day         int     `gorm:"column:day;uniqueIndex:idx_user_day_product" json:"day"`
 	ProductID   uint    `gorm:"column:product_id;uniqueIndex:idx_user_day_product" json:"product_id"`
 	Price       float64 `json:"price"`
+	StockLimit  int     `gorm:"column:stock_limit" json:"stock_limit"` // 当日可购买数量上限（由商品最高/最低存货量随机生成）
 	CritApplied bool    `gorm:"column:crit_applied" json:"crit_applied"` // 当日价格是否由暴击事件加成
 }
 

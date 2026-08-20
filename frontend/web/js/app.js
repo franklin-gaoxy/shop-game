@@ -264,6 +264,15 @@ async function loadShop() {
   }
 }
 
+// stockLimitText 当日限购展示（stock_limit 为 0 表示不限）
+function stockLimitText(p) {
+  return p.stock_limit > 0 ? p.stock_bought + " / " + p.stock_limit : "不限";
+}
+
+function stockRemainingText(p) {
+  return p.stock_limit > 0 ? String(p.stock_remaining) : "不限";
+}
+
 function renderShop() {
   const d = state.shopData;
   const total = (d.products || []).length;
@@ -279,16 +288,18 @@ function renderShop() {
       <td>${esc(p.category)}</td>
       <td class="trend-up" style="color:var(--primary)">${money(p.price)}</td>
       <td>${p.crit_applied ? '<span class="trend-up">是</span>' : "-"}</td>
+      <td>${stockLimitText(p)}</td>
+      <td class="${p.stock_limit > 0 && p.stock_remaining <= 0 ? "trend-down" : ""}">${stockRemainingText(p)}</td>
       <td>${money(p.min_price)} ~ ${money(p.max_price)}</td>
       <td>${p.size}</td>
       <td>${esc(storageTypeName(p.storage_type))}</td>
       <td>${expireDaysText(p.normal_expire_days)}</td>
       <td>${expireDaysText(p.cold_expire_days)}</td>
-      <td><button class="btn small primary" data-buy="${p.id}">购买</button></td>
+      <td><button class="btn small primary" data-buy="${p.id}" ${p.stock_limit > 0 && p.stock_remaining <= 0 ? "disabled" : ""}>购买</button></td>
     </tr>`
         )
         .join("")
-    : '<tr><td class="freeze" colspan="10">（暂无商品）</td></tr>';
+    : '<tr><td class="freeze" colspan="12">（暂无商品）</td></tr>';
 
   $("shop-tbody")
     .querySelectorAll("[data-buy]")
@@ -677,7 +688,7 @@ function adjustQty(dir) {
 }
 
 // applyQtyFraction 半仓/全仓快捷填充：
-// 买入 → 按剩余仓库空间可存放数量计算（考虑所选存储仓库）；
+// 买入 → 取「剩余仓库空间可存放数量」与「当日剩余限购数量」中的较小值；
 // 卖出 → 按持有数量计算。
 function applyQtyFraction(frac) {
   if (!tradeCtx) return;
@@ -696,9 +707,18 @@ function applyQtyFraction(frac) {
     const free = storage === STORAGE_COLD ? tradeCtx.space.cold.free : tradeCtx.space.normal.free;
     const size = Number(tradeCtx.product.size) || 1;
     qty = Math.floor(Math.floor(free / size) * frac);
+    // 当日限购约束（stock_limit 为 0 表示不限）
+    if (tradeCtx.product.stock_limit > 0) {
+      qty = Math.min(qty, tradeCtx.product.stock_remaining);
+    }
   }
   if (qty < 1) {
-    toast(tradeCtx.mode === "sell" ? "持有数量不足" : "剩余仓库空间不足", "error");
+    toast(
+      tradeCtx.mode === "sell" ? "持有数量不足"
+        : (tradeCtx.product.stock_limit > 0 && tradeCtx.product.stock_remaining < 1
+            ? "今日限购数量已买完" : "剩余仓库空间不足"),
+      "error"
+    );
     return;
   }
   $("trade-quantity").value = qty;
@@ -729,10 +749,14 @@ async function openBuyModal(p) {
   $("trade-title").textContent = "购买 " + p.name;
   const expire =
     p.storage_type === STORAGE_COLD ? p.cold_expire_days : p.normal_expire_days;
+  const stockInfo = p.stock_limit > 0
+    ? "｜今日限购：" + p.stock_bought + "/" + p.stock_limit + "（剩余可购 " + p.stock_remaining + "）"
+    : "｜今日限购：不限";
   $("trade-info").innerHTML =
     "种类：" + esc(p.category) +
     "｜今日价格：" + money(p.price) +
     "｜占用空间：" + p.size + "/个" +
+    stockInfo +
     "<br>普通过期：" + expireDaysText(p.normal_expire_days) +
     "｜冷藏过期：" + expireDaysText(p.cold_expire_days);
 
@@ -742,10 +766,16 @@ async function openBuyModal(p) {
   $("trade-storage").value = String(STORAGE_NORMAL);
   if (p.storage_type === STORAGE_COLD) $("trade-storage").value = String(STORAGE_COLD);
 
+  // 当日限购：数量上限为剩余可购（stock_limit 为 0 表示不限）
+  const limited = p.stock_limit > 0 && p.stock_remaining > 0;
+  if (p.stock_limit > 0 && p.stock_remaining <= 0) {
+    $("trade-msg").textContent = "今日限购 " + p.stock_limit + " 已买完，明天再来吧";
+  } else {
+    $("trade-msg").textContent = "";
+  }
   $("trade-quantity").value = 1;
-  $("trade-quantity").max = "";
+  $("trade-quantity").max = limited ? p.stock_remaining : "";
   $("trade-estimate").textContent = estimateText();
-  $("trade-msg").textContent = "";
   $("trade-modal").classList.remove("hidden");
 }
 
@@ -770,6 +800,17 @@ async function confirmTrade() {
   if (!Number.isInteger(qty) || qty <= 0) {
     $("trade-msg").textContent = "数量必须是正整数";
     return;
+  }
+  // 买入时校验当日限购（stock_limit 为 0 表示不限）
+  if (tradeCtx.mode === "buy" && tradeCtx.product.stock_limit > 0) {
+    if (tradeCtx.product.stock_remaining <= 0) {
+      $("trade-msg").textContent = "今日限购 " + tradeCtx.product.stock_limit + " 已买完，明天再来吧";
+      return;
+    }
+    if (qty > tradeCtx.product.stock_remaining) {
+      $("trade-msg").textContent = "超出当日限购：今日剩余可购 " + tradeCtx.product.stock_remaining;
+      return;
+    }
   }
   const btn = $("trade-confirm");
   btn.disabled = true;

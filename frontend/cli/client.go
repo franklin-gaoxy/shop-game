@@ -125,13 +125,18 @@ type Product struct {
 	Size             int64   `json:"size"`
 	NormalExpireDays int     `json:"normal_expire_days"`
 	ColdExpireDays   int     `json:"cold_expire_days"`
+	MaxStock         int     `json:"max_stock"` // 单日最高存货量（每日限购上限随机区间最大值）
+	MinStock         int     `json:"min_stock"` // 单日最低存货量（每日限购上限随机区间最小值）
 }
 
 // ProductPrice 商品 + 今日价格
 type ProductPrice struct {
 	Product
-	Price       float64 `json:"price"`
-	CritApplied bool    `json:"crit_applied"` // 今日价格是否由暴击事件加成
+	Price          float64 `json:"price"`
+	CritApplied    bool    `json:"crit_applied"`  // 今日价格是否由暴击事件加成
+	StockLimit     int     `json:"stock_limit"`   // 当日可购买数量上限（0 表示不限）
+	StockBought    int     `json:"stock_bought"`  // 当日已购买数量
+	StockRemaining int     `json:"stock_remaining"` // 当日剩余可购买数量
 }
 
 // productsResp 商城响应

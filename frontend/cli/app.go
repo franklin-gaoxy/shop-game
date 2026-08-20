@@ -216,6 +216,22 @@ func (a *App) listTransactions() {
 	}
 }
 
+// stockText 当日限购展示：不限 / 已购/上限
+func stockText(p ProductPrice) string {
+	if p.StockLimit <= 0 {
+		return "不限"
+	}
+	return fmt.Sprintf("%d/%d", p.StockBought, p.StockLimit)
+}
+
+// stockRemainingText 当日剩余可购展示
+func stockRemainingText(p ProductPrice) string {
+	if p.StockLimit <= 0 {
+		return "不限"
+	}
+	return fmt.Sprint(p.StockRemaining)
+}
+
 // listProducts 列出今日商品与价格
 func (a *App) listProducts() *productsResp {
 	res, err := a.client.Products()
@@ -224,7 +240,7 @@ func (a *App) listProducts() *productsResp {
 		return nil
 	}
 	fmt.Printf("\n第 %d 天 商城商品：\n", res.Day)
-	t := NewTable("ID", "商品", "种类", "今日价格", "暴击", "占用空间", "存储仓库", "普通过期", "冷藏过期")
+	t := NewTable("ID", "商品", "种类", "今日价格", "暴击", "今日限购", "剩余可购", "占用空间", "存储仓库", "普通过期", "冷藏过期")
 	for _, p := range res.Products {
 		crit := "-"
 		if p.CritApplied {
@@ -236,6 +252,8 @@ func (a *App) listProducts() *productsResp {
 			p.Category,
 			fmt.Sprintf("%.2f", p.Price),
 			crit,
+			stockText(p),
+			stockRemainingText(p),
 			fmt.Sprint(p.Size),
 			storageTypeName(p.StorageType),
 			expireDaysText(p.NormalExpireDays),
@@ -265,8 +283,23 @@ func (a *App) doBuy() {
 		fmt.Println("商品ID不存在")
 		return
 	}
-	quantity := readIntRange("购买数量: ", 1, 0)
 
+	// 当日限购：剩余可购数量为 0 时禁止购买（stock_limit 为 0 表示不限）
+	if prod.StockLimit > 0 {
+		if prod.StockRemaining <= 0 {
+			fmt.Printf("今日限购 %d 已全部买完（已购 %d），明天再来吧\n", prod.StockLimit, prod.StockBought)
+			return
+		}
+		quantity := readIntRange(fmt.Sprintf("购买数量（今日剩余可购 %d）: ", prod.StockRemaining), 1, int64(prod.StockRemaining))
+		a.buyConfirm(prod, int(quantity))
+		return
+	}
+	quantity := readIntRange("购买数量: ", 1, 0)
+	a.buyConfirm(prod, int(quantity))
+}
+
+// buyConfirm 购买确认与提交
+func (a *App) buyConfirm(prod *ProductPrice, quantity int) {
 	storage := StorageNormal
 	expire := prod.NormalExpireDays
 	switch prod.StorageType {
