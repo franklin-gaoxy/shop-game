@@ -322,7 +322,12 @@
         </select>
       </label>
       <label>数量
-        <input type="number" id="trade-quantity" min="1" step="1" value="1">
+        <div class="qty-row">
+          <input type="number" id="trade-quantity" min="1" step="1" value="1">
+          <input type="number" id="trade-step" min="1" step="1" value="10" class="step-input" title="步长：每点一次箭头增减的数量">
+          <button type="button" id="qty-up" class="btn qty-btn" title="数量 + 步长">▲</button>
+          <button type="button" id="qty-down" class="btn qty-btn" title="数量 - 步长">▼</button>
+        </div>
       </label>
       <p class="trade-estimate" id="trade-estimate"></p>
       <p class="form-msg" id="trade-msg"></p>
@@ -393,7 +398,7 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="js/api.js?v=4"></script>
-  <script src="js/app.js?v=4"></script>
+  <script src="js/api.js?v=5"></script>
+  <script src="js/app.js?v=5"></script>
 </body>
 </html>

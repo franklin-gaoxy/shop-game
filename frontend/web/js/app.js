@@ -654,6 +654,20 @@ function renderPager(containerId, page, totalPages, go) {
   el.append(prev, info, next);
 }
 
+// ==================== 数量步进控制（▲/▼ 按步长增减） ====================
+function adjustQty(dir) {
+  const qtyInput = $("trade-quantity");
+  // 步长取输入框值，非法（空/非数字/<1）时按 1 处理
+  const stepRaw = Number($("trade-step").value);
+  const step = Number.isFinite(stepRaw) && stepRaw >= 1 ? Math.floor(stepRaw) : 1;
+  let qty = Math.floor(Number(qtyInput.value) || 0) + dir * step;
+  const max = Number(qtyInput.max);
+  if (qty < 1) qty = 1;
+  if (max > 0 && qty > max) qty = max; // 卖出时不超过持有数量
+  qtyInput.value = qty;
+  $("trade-estimate").textContent = estimateText();
+}
+
 // ==================== 买入 / 卖出弹窗 ====================
 let tradeCtx = null; // {mode:'buy'|'sell', product}
 
@@ -828,6 +842,9 @@ function init() {
   $("trade-quantity").addEventListener("input", () => {
     $("trade-estimate").textContent = estimateText();
   });
+  // 数量步进按钮（按步长输入框的值增减）
+  $("qty-up").addEventListener("click", () => adjustQty(1));
+  $("qty-down").addEventListener("click", () => adjustQty(-1));
   $("trade-confirm").addEventListener("click", confirmTrade);
   $("trade-cancel").addEventListener("click", () => $("trade-modal").classList.add("hidden"));
 

@@ -643,3 +643,31 @@ button {
   position: sticky;
   top: 0;
 }
+
+/* ==================== 数量步进控制行 ==================== */
+/* 数量输入框、步长输入框、▲▼按钮平行排列 */
+.qty-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 6px;
+}
+
+.qty-row input {
+  margin-top: 0;
+}
+
+#trade-quantity {
+  flex: 1;
+}
+
+.step-input {
+  width: 76px;
+}
+
+.qty-btn {
+  padding: 9px 12px;
+  font-size: 13px;
+  line-height: 1;
+  flex-shrink: 0;
+}
