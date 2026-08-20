@@ -208,8 +208,9 @@ async function loadHome() {
 }
 
 async function doTomorrow() {
-  const btn = $("btn-tomorrow");
-  btn.disabled = true;
+  // 首页按钮与顶栏按钮同时禁用，防止重复提交
+  const btns = [$("btn-tomorrow"), $("btn-tomorrow-top")].filter(Boolean);
+  btns.forEach((b) => (b.disabled = true));
   try {
     const res = await API.tomorrow();
     state.user.day = res.day;
@@ -236,11 +237,18 @@ async function doTomorrow() {
     $("tomorrow-events").innerHTML =
       events.length ? events.join("") : '<div class="event-line">今日无暴击与过期事件</div>';
     $("tomorrow-result").style.display = "";
-    await loadHome();
+    // 刷新当前所在页面的数据（价格/库存/空间随天数变化）
+    switch (state.currentPage) {
+      case "shop": await loadShop(); break;
+      case "warehouse": await loadWarehouse(); break;
+      case "special": await loadSpecial(); break;
+      case "transactions": await loadTransactions(); break;
+      default: await loadHome();
+    }
   } catch (e) {
     toast(e.message, "error");
   } finally {
-    btn.disabled = false;
+    btns.forEach((b) => (b.disabled = false));
   }
 }
 
@@ -668,6 +676,35 @@ function adjustQty(dir) {
   $("trade-estimate").textContent = estimateText();
 }
 
+// applyQtyFraction 半仓/全仓快捷填充：
+// 买入 → 按剩余仓库空间可存放数量计算（考虑所选存储仓库）；
+// 卖出 → 按持有数量计算。
+function applyQtyFraction(frac) {
+  if (!tradeCtx) return;
+  let qty = 0;
+  if (tradeCtx.mode === "sell") {
+    qty = Math.floor(tradeCtx.product.quantity * frac);
+  } else {
+    if (!tradeCtx.space) {
+      toast("未能获取仓库空间，无法计算", "error");
+      return;
+    }
+    // 当前选择的存储仓库（仅双仓库商品显示选择框）
+    const storage = $("trade-storage-label").classList.contains("hidden")
+      ? (tradeCtx.product.storage_type === STORAGE_COLD ? STORAGE_COLD : STORAGE_NORMAL)
+      : Number($("trade-storage").value);
+    const free = storage === STORAGE_COLD ? tradeCtx.space.cold.free : tradeCtx.space.normal.free;
+    const size = Number(tradeCtx.product.size) || 1;
+    qty = Math.floor(Math.floor(free / size) * frac);
+  }
+  if (qty < 1) {
+    toast(tradeCtx.mode === "sell" ? "持有数量不足" : "剩余仓库空间不足", "error");
+    return;
+  }
+  $("trade-quantity").value = qty;
+  $("trade-estimate").textContent = estimateText();
+}
+
 // ==================== 买入 / 卖出弹窗 ====================
 let tradeCtx = null; // {mode:'buy'|'sell', product}
 
@@ -681,8 +718,14 @@ function estimateText() {
   return verb + " " + money(price * qty) + "（单价 " + money(price) + " × " + qty + "）";
 }
 
-function openBuyModal(p) {
-  tradeCtx = { mode: "buy", product: p };
+async function openBuyModal(p) {
+  tradeCtx = { mode: "buy", product: p, space: null };
+  // 获取仓库剩余空间（半仓/全仓计算用）
+  try {
+    tradeCtx.space = await API.warehouseSpace();
+  } catch (e) {
+    /* 获取失败时点击半仓/全仓会提示 */
+  }
   $("trade-title").textContent = "购买 " + p.name;
   const expire =
     p.storage_type === STORAGE_COLD ? p.cold_expire_days : p.normal_expire_days;
@@ -837,6 +880,8 @@ function init() {
 
   // 首页
   $("btn-tomorrow").addEventListener("click", doTomorrow);
+  // 顶栏"明天"按钮
+  $("btn-tomorrow-top").addEventListener("click", doTomorrow);
 
   // 交易弹窗
   $("trade-quantity").addEventListener("input", () => {
@@ -845,6 +890,9 @@ function init() {
   // 数量步进按钮（按步长输入框的值增减）
   $("qty-up").addEventListener("click", () => adjustQty(1));
   $("qty-down").addEventListener("click", () => adjustQty(-1));
+  // 半仓 / 全仓快捷填充
+  $("qty-half").addEventListener("click", () => applyQtyFraction(0.5));
+  $("qty-full").addEventListener("click", () => applyQtyFraction(1));
   $("trade-confirm").addEventListener("click", confirmTrade);
   $("trade-cancel").addEventListener("click", () => $("trade-modal").classList.add("hidden"));
 

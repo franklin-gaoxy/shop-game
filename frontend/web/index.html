@@ -66,6 +66,7 @@
       </nav>
       <div class="topbar-right">
         <span id="topbar-user" class="topbar-user"></span>
+        <button type="button" id="btn-tomorrow-top" class="btn small" title="进入明天">☀ 明天</button>
         <button type="button" id="btn-admin" class="btn small admin-menu hidden" title="密钥和用户管理">🔑 密钥和用户管理</button>
         <button type="button" id="btn-settings" class="btn small" title="设置">⚙ 设置</button>
         <button type="button" id="btn-logout" class="btn small danger">退出</button>
@@ -328,6 +329,10 @@
           <button type="button" id="qty-up" class="btn qty-btn" title="数量 + 步长">▲</button>
           <button type="button" id="qty-down" class="btn qty-btn" title="数量 - 步长">▼</button>
         </div>
+        <div class="qty-quick">
+          <button type="button" id="qty-half" class="btn" title="按可存放/持有数量的一半填入">半仓</button>
+          <button type="button" id="qty-full" class="btn" title="按可存放/持有数量的全部填入">全仓</button>
+        </div>
       </label>
       <p class="trade-estimate" id="trade-estimate"></p>
       <p class="form-msg" id="trade-msg"></p>
@@ -398,7 +403,7 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="js/api.js?v=5"></script>
-  <script src="js/app.js?v=5"></script>
+  <script src="js/api.js?v=6"></script>
+  <script src="js/app.js?v=6"></script>
 </body>
 </html>

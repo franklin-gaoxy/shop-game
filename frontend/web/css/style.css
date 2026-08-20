@@ -645,7 +645,7 @@ button {
 }
 
 /* ==================== 数量步进控制行 ==================== */
-/* 数量输入框、步长输入框、▲▼按钮平行排列 */
+/* 数量输入框为主（弹性伸展占满剩余空间），步长框窄、▲▼按钮固定 */
 .qty-row {
   display: flex;
   gap: 8px;
@@ -653,16 +653,18 @@ button {
   margin-top: 6px;
 }
 
-.qty-row input {
-  margin-top: 0;
-}
-
+/* 数量输入框：主输入位，width:0 抵消弹窗内 input 的 width:100%，
+   让 flex 伸展决定实际宽度 */
 #trade-quantity {
-  flex: 1;
+  flex: 1 1 auto;
+  width: 0;
+  min-width: 0;
 }
 
+/* 步长输入框：固定窄宽，不参与伸缩 */
 .step-input {
-  width: 76px;
+  flex: 0 0 60px;
+  width: 60px;
 }
 
 .qty-btn {
@@ -670,4 +672,17 @@ button {
   font-size: 13px;
   line-height: 1;
   flex-shrink: 0;
+}
+
+/* 半仓 / 全仓 快捷按钮行 */
+.qty-quick {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.qty-quick .btn {
+  flex: 1;
+  padding: 6px 0;
+  font-size: 13px;
 }
