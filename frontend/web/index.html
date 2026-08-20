@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>交易小游戏</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- ==================== 登录 / 注册视图 ==================== -->
+  <div id="auth-view" class="auth-view">
+    <div class="auth-card">
+      <h1 class="auth-title">交易小游戏</h1>
+      <div class="auth-tabs">
+        <button type="button" id="tab-login" class="tab active">登录</button>
+        <button type="button" id="tab-register" class="tab">注册</button>
+      </div>
+
+      <!-- 登录表单（默认展示） -->
+      <form id="login-form" class="auth-form">
+        <label>用户名
+          <input type="text" name="username" autocomplete="username" required>
+        </label>
+        <label>密码
+          <input type="password" name="password" autocomplete="current-password" required>
+        </label>
+        <p id="login-msg" class="form-msg"></p>
+        <button type="submit" class="btn primary block">登 录</button>
+      </form>
+
+      <!-- 注册表单 -->
+      <form id="register-form" class="auth-form hidden">
+        <label>用户名
+          <input type="text" name="username" autocomplete="username" required>
+        </label>
+        <label>密码
+          <input type="password" name="password" autocomplete="new-password" required>
+        </label>
+        <label>注册密钥
+          <input type="text" name="key" placeholder="10 位注册密钥" required>
+        </label>
+        <p id="register-msg" class="form-msg"></p>
+        <button type="submit" class="btn primary block">注 册</button>
+      </form>
+
+      <div class="auth-server">
+        <span>服务器地址：</span>
+        <code id="auth-server-addr"></code>
+        <button type="button" id="auth-server-edit" class="btn small">修改</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 主视图 ==================== -->
+  <div id="main-view" class="main-view hidden">
+    <!-- 顶部标题栏 -->
+    <header class="topbar">
+      <div class="brand">交易小游戏</div>
+      <nav class="nav" id="main-nav">
+        <button class="nav-link active" data-page="home">首页</button>
+        <button class="nav-link" data-page="shop">商城</button>
+        <button class="nav-link" data-page="special">特殊商城</button>
+        <button class="nav-link" data-page="warehouse">仓库</button>
+        <button class="nav-link" data-page="transactions">交易记录</button>
+      </nav>
+      <div class="topbar-right">
+        <span id="topbar-user" class="topbar-user"></span>
+        <button type="button" id="btn-settings" class="btn small" title="设置">⚙ 设置</button>
+        <button type="button" id="btn-logout" class="btn small danger">退出</button>
+      </div>
+    </header>
+
+    <main class="content">
+      <!-- 首页 -->
+      <section id="page-home" class="page">
+        <div class="stat-cards">
+          <div class="stat-card">
+            <div class="stat-label">剩余金钱</div>
+            <div class="stat-value money" id="home-money">--</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">当前天数</div>
+            <div class="stat-value" id="home-day">--</div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>仓库使用情况</h3>
+          <div class="storage-block">
+            <div class="storage-head">
+              <span>普通仓库</span>
+              <span id="home-normal-text">--</span>
+            </div>
+            <div class="progress"><div class="progress-bar" id="home-normal-bar"></div></div>
+            <div class="storage-sub">已用 <span id="home-normal-used">--</span> ／ 可用 <span id="home-normal-free">--</span> ／ 总容量 <span id="home-normal-cap">--</span></div>
+          </div>
+          <div class="storage-block">
+            <div class="storage-head">
+              <span>冷藏仓库</span>
+              <span id="home-cold-text">--</span>
+            </div>
+            <div class="progress"><div class="progress-bar cold" id="home-cold-bar"></div></div>
+            <div class="storage-sub">已用 <span id="home-cold-used">--</span> ／ 可用 <span id="home-cold-free">--</span> ／ 总容量 <span id="home-cold-cap">--</span></div>
+          </div>
+          <div class="home-actions">
+            <button type="button" id="btn-tomorrow" class="btn primary">进入明天 →</button>
+          </div>
+        </div>
+        <div class="card" id="tomorrow-result" style="display:none">
+          <h3>今日事件</h3>
+          <div id="tomorrow-events"></div>
+        </div>
+      </section>
+
+      <!-- 商城 -->
+      <section id="page-shop" class="page hidden">
+        <div class="page-head">
+          <h2>商城</h2>
+          <span class="page-sub" id="shop-day"></span>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th class="freeze">商品名称</th>
+                <th>种类</th>
+                <th>今日价格</th>
+                <th>暴击</th>
+                <th>价格区间</th>
+                <th>占用空间</th>
+                <th>存储仓库</th>
+                <th>普通过期</th>
+                <th>冷藏过期</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="shop-tbody"></tbody>
+          </table>
+        </div>
+        <div class="pager" id="shop-pager"></div>
+      </section>
+
+      <!-- 特殊商城 -->
+      <section id="page-special" class="page hidden">
+        <div class="page-head">
+          <h2>特殊商城</h2>
+          <span class="page-sub">购买仓库空间（每月按 30 天计，最短 1 个月，最长 12 个月）</span>
+        </div>
+
+        <div class="stat-cards">
+          <div class="stat-card">
+            <div class="stat-label">普通仓库（<span id="sp-normal-unit">--</span> 元/单位/月）</div>
+            <div class="storage-inline">
+              总容量 <b id="sp-normal-cap">--</b> ｜ 已用 <b id="sp-normal-used">--</b> ｜ 剩余 <b id="sp-normal-free">--</b>
+            </div>
+            <div class="progress"><div class="progress-bar" id="sp-normal-bar"></div></div>
+            <button type="button" class="btn primary block" data-buy-space="1">购买普通仓库空间</button>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">冷藏仓库（<span id="sp-cold-unit">--</span> 元/单位/月）</div>
+            <div class="storage-inline">
+              总容量 <b id="sp-cold-cap">--</b> ｜ 已用 <b id="sp-cold-used">--</b> ｜ 剩余 <b id="sp-cold-free">--</b>
+            </div>
+            <div class="progress"><div class="progress-bar cold" id="sp-cold-bar"></div></div>
+            <button type="button" class="btn primary block" data-buy-space="2">购买冷藏仓库空间</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>已购买的空间记录</h3>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th class="freeze">仓库类型</th>
+                  <th>大小</th>
+                  <th>月数</th>
+                  <th>单价</th>
+                  <th>开始天</th>
+                  <th>到期天</th>
+                  <th>状态</th>
+                </tr>
+              </thead>
+              <tbody id="sp-purchase-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- 仓库 -->
+      <section id="page-warehouse" class="page hidden">
+        <div class="page-head">
+          <h2>仓库</h2>
+          <span class="page-sub" id="wh-day"></span>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th class="freeze">商品名称</th>
+                <th>仓库</th>
+                <th>数量</th>
+                <th>均价</th>
+                <th>总价值</th>
+                <th>今日价格</th>
+                <th>趋势 / 预计盈亏</th>
+                <th>到期</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="wh-tbody"></tbody>
+          </table>
+        </div>
+        <div class="pager" id="wh-pager"></div>
+      </section>
+
+      <!-- 交易记录 -->
+      <section id="page-transactions" class="page hidden">
+        <div class="page-head">
+          <h2>交易记录</h2>
+          <span class="page-sub" id="tx-total"></span>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th class="freeze">商品/事项</th>
+                <th>天数</th>
+                <th>类型</th>
+                <th>收支</th>
+                <th>数量</th>
+                <th>单价</th>
+                <th>金额</th>
+                <th>交易后余额</th>
+                <th>时间</th>
+              </tr>
+            </thead>
+            <tbody id="tx-tbody"></tbody>
+          </table>
+        </div>
+        <div class="pager" id="tx-pager"></div>
+      </section>
+    </main>
+  </div>
+
+  <!-- ==================== 设置弹窗 ==================== -->
+  <div id="settings-modal" class="modal hidden">
+    <div class="modal-box">
+      <h3>全局设置</h3>
+      <label>后端服务器地址（含端口）
+        <input type="text" id="settings-server" placeholder="http://127.0.0.1:8080">
+      </label>
+      <p class="form-msg" id="settings-msg"></p>
+      <div class="modal-actions">
+        <button type="button" id="settings-save" class="btn primary">保存</button>
+        <button type="button" id="settings-close" class="btn">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 买入/卖出弹窗 ==================== -->
+  <div id="trade-modal" class="modal hidden">
+    <div class="modal-box">
+      <h3 id="trade-title">交易</h3>
+      <p id="trade-info" class="trade-info"></p>
+      <label id="trade-storage-label">存储仓库
+        <select id="trade-storage">
+          <option value="1">普通仓库</option>
+          <option value="2">冷藏仓库</option>
+        </select>
+      </label>
+      <label>数量
+        <input type="number" id="trade-quantity" min="1" step="1" value="1">
+      </label>
+      <p class="trade-estimate" id="trade-estimate"></p>
+      <p class="form-msg" id="trade-msg"></p>
+      <div class="modal-actions">
+        <button type="button" id="trade-confirm" class="btn primary">确认</button>
+        <button type="button" id="trade-cancel" class="btn">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 购买仓库空间弹窗 ==================== -->
+  <div id="space-modal" class="modal hidden">
+    <div class="modal-box">
+      <h3 id="space-title">购买仓库空间</h3>
+      <p id="space-info" class="trade-info"></p>
+      <label>空间大小
+        <input type="number" id="space-size" min="1" step="1" value="100">
+      </label>
+      <label>购买月数（1-12，每月按 30 天）
+        <input type="number" id="space-months" min="1" max="12" step="1" value="1">
+      </label>
+      <p class="trade-estimate" id="space-estimate"></p>
+      <p class="form-msg" id="space-msg"></p>
+      <div class="modal-actions">
+        <button type="button" id="space-confirm" class="btn primary">确认购买</button>
+        <button type="button" id="space-cancel" class="btn">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="js/api.js?v=2"></script>
+  <script src="js/app.js?v=2"></script>
+</body>
+</html>

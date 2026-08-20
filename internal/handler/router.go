@@ -20,6 +20,7 @@ func NewRouter(db database.Database) *gin.Engine {
 	h := &Handler{db: db, sessions: newSessionManager()}
 
 	r := gin.Default()
+	r.Use(cors())
 	r.GET("/healthz", func(c *gin.Context) {
 		c.String(http.StatusOK, "ok")
 	})
@@ -57,6 +58,20 @@ func NewRouter(db database.Database) *gin.Engine {
 	}
 
 	return r
+}
+
+// cors 跨域中间件：Web 前端页面与服务端可能部署在不同地址（前端可全局配置服务端地址），需允许跨域
+func cors() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Header("Access-Control-Allow-Origin", "*")
+		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		c.Header("Access-Control-Allow-Headers", "Content-Type, X-Token, Authorization")
+		if c.Request.Method == http.MethodOptions {
+			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+		c.Next()
+	}
 }
 
 // ok 统一成功响应
