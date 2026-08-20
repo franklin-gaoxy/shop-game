@@ -9,6 +9,7 @@ const state = {
   whPage: 1,
   whData: null,
   txPage: 1,
+  adminUserPage: 1,
   currentPage: "home",
 };
 
@@ -59,6 +60,8 @@ function updateTopbar() {
   if (!state.user) return;
   $("topbar-user").textContent =
     state.user.username + " ｜ 第 " + state.user.day + " 天 ｜ 余额 " + money(state.user.money);
+  // 仅管理员显示"密钥和用户管理"菜单
+  $("btn-admin").classList.toggle("hidden", !state.user.is_admin);
 }
 
 async function refreshUser() {
@@ -75,6 +78,7 @@ function switchPage(name) {
   document.querySelectorAll(".nav-link").forEach((b) =>
     b.classList.toggle("active", b.dataset.page === name)
   );
+  $("btn-admin").classList.toggle("active", name === "admin");
   document.querySelectorAll(".page").forEach((p) =>
     p.classList.toggle("hidden", p.id !== "page-" + name)
   );
@@ -84,6 +88,7 @@ function switchPage(name) {
     case "special": loadSpecial(); break;
     case "warehouse": loadWarehouse(); break;
     case "transactions": loadTransactions(); break;
+    case "admin": loadAdmin(); break;
   }
 }
 
@@ -432,6 +437,201 @@ async function loadTransactions() {
   }
 }
 
+// ==================== 密钥和用户管理（仅 admin） ====================
+async function loadAdmin() {
+  if (!state.user || !state.user.is_admin) {
+    switchPage("home");
+    return;
+  }
+  await Promise.all([loadAdminUsers(), loadAdminKeys()]);
+}
+
+// ---------- 用户管理 ----------
+async function loadAdminUsers() {
+  try {
+    const d = await API.adminUsers(state.adminUserPage, PAGE_SIZE);
+    $("admin-user-total").textContent = "共 " + d.total + " 人";
+    const totalPages = Math.max(1, Math.ceil(d.total / PAGE_SIZE));
+    if (state.adminUserPage > totalPages) state.adminUserPage = totalPages;
+
+    const fmtTime = (s) => (s || "").replace("T", " ").slice(0, 19);
+    $("admin-user-tbody").innerHTML = d.list.length
+      ? d.list
+          .map((u) => {
+            const self = u.id === state.user.id;
+            const statusHtml = u.status === 1
+              ? '<span class="trend-up">正常</span>'
+              : '<span class="trend-down">已禁用</span>';
+            // 操作列：管理员自身不可禁用/删除
+            const actions = self
+              ? '<span class="trend-flat">当前账号</span>'
+              : (u.status === 1
+                  ? '<button class="btn small danger" data-ustatus="0" data-uid="' + u.id + '" data-uname="' + esc(u.username) + '">禁用</button> '
+                  : '<button class="btn small" data-ustatus="1" data-uid="' + u.id + '" data-uname="' + esc(u.username) + '">启用</button> ') +
+                '<button class="btn small danger" data-udel="' + u.id + '" data-uname="' + esc(u.username) + '">删除</button>';
+            return `<tr>
+        <td class="freeze">${esc(u.username)}</td>
+        <td>${u.is_admin ? "管理员" : "普通用户"}</td>
+        <td>${statusHtml}</td>
+        <td>第 ${u.day} 天</td>
+        <td>${money(u.money)}</td>
+        <td>${u.key_id || "-"}</td>
+        <td>${esc(fmtTime(u.created_at))}</td>
+        <td>${actions}</td>
+      </tr>`;
+          })
+          .join("")
+      : '<tr><td class="freeze" colspan="8">（暂无用户）</td></tr>';
+
+    // 禁用/启用/删除事件
+    $("admin-user-tbody").querySelectorAll("[data-ustatus]").forEach((b) =>
+      b.addEventListener("click", async () => {
+        const status = Number(b.dataset.ustatus);
+        const action = status === 0 ? "禁用" : "启用";
+        if (!confirm("确认" + action + "用户「" + b.dataset.uname + "」？" + (status === 0 ? "（禁用后该用户将立即被踢下线且无法登录）" : ""))) {
+          return;
+        }
+        try {
+          await API.adminSetUserStatus(b.dataset.uid, status);
+          toast(action + "成功", "success");
+          loadAdminUsers();
+        } catch (e) {
+          toast(e.message, "error");
+        }
+      })
+    );
+    $("admin-user-tbody").querySelectorAll("[data-udel]").forEach((b) =>
+      b.addEventListener("click", async () => {
+        if (!confirm("确认删除用户「" + b.dataset.uname + "」？其仓库、交易记录等数据将一并删除，且不可恢复！")) {
+          return;
+        }
+        try {
+          await API.adminDeleteUser(b.dataset.udel);
+          toast("删除成功", "success");
+          loadAdminUsers();
+          loadAdminKeys();
+        } catch (e) {
+          toast(e.message, "error");
+        }
+      })
+    );
+
+    renderPager("admin-user-pager", state.adminUserPage, totalPages, (p) => {
+      state.adminUserPage = p;
+      loadAdminUsers();
+    });
+  } catch (e) {
+    toast(e.message, "error");
+  }
+}
+
+// ---------- 密钥管理 ----------
+async function loadAdminKeys() {
+  try {
+    const keys = await API.adminKeys();
+    const fmtTime = (s) => (s || "").replace("T", " ").slice(0, 19);
+    $("admin-key-tbody").innerHTML = keys.length
+      ? keys
+          .map((k) => {
+            const remain = k.max_uses - k.used_count;
+            const statusHtml =
+              k.status !== 1 ? '<span class="trend-down">已禁用</span>'
+              : remain <= 0 ? '<span class="trend-flat">已用完</span>'
+              : '<span class="trend-up">可用</span>';
+            // 已被使用过的密钥后端不允许删除
+            const canDel = k.used_count === 0;
+            return `<tr>
+        <td class="freeze"><code class="key-code">${esc(k.key)}</code></td>
+        <td>${k.max_uses}</td>
+        <td>${k.used_count}</td>
+        <td>${remain}</td>
+        <td>${statusHtml}</td>
+        <td>${esc(k.created_by || "-")}</td>
+        <td>${esc(fmtTime(k.created_at))}</td>
+        <td>
+          <button class="btn small" data-keyusers="${k.id}" data-key="${esc(k.key)}">查看用户</button>
+          ${canDel ? ' <button class="btn small danger" data-keydel="' + k.id + '" data-key="' + esc(k.key) + '">删除</button>' : ""}
+        </td>
+      </tr>`;
+          })
+          .join("")
+      : '<tr><td class="freeze" colspan="8">（暂无密钥）</td></tr>';
+
+    // 查看密钥绑定用户
+    $("admin-key-tbody").querySelectorAll("[data-keyusers]").forEach((b) =>
+      b.addEventListener("click", () => showKeyUsers(b.dataset.keyusers, b.dataset.key))
+    );
+    // 删除密钥（仅未被使用过的）
+    $("admin-key-tbody").querySelectorAll("[data-keydel]").forEach((b) =>
+      b.addEventListener("click", async () => {
+        if (!confirm("确认删除密钥「" + b.dataset.key + "」？删除后该密钥将无法用于注册。")) {
+          return;
+        }
+        try {
+          await API.adminDeleteKey(b.dataset.keydel);
+          toast("删除成功", "success");
+          loadAdminKeys();
+        } catch (e) {
+          toast(e.message, "error");
+        }
+      })
+    );
+  } catch (e) {
+    toast(e.message, "error");
+  }
+}
+
+// 密钥绑定用户弹窗
+async function showKeyUsers(id, key) {
+  try {
+    const users = await API.adminKeyUsers(id);
+    $("key-users-title").textContent = "密钥 " + key + " 绑定的用户（" + users.length + " 人）";
+    const fmtTime = (s) => (s || "").replace("T", " ").slice(0, 19);
+    $("key-users-tbody").innerHTML = users.length
+      ? users
+          .map(
+            (u) => `<tr>
+        <td class="freeze">${esc(u.username)}</td>
+        <td>第 ${u.day} 天</td>
+        <td>${money(u.money)}</td>
+        <td>${esc(fmtTime(u.created_at))}</td>
+      </tr>`
+          )
+          .join("")
+      : '<tr><td class="freeze" colspan="4">（该密钥暂无绑定用户）</td></tr>';
+    $("key-users-modal").classList.remove("hidden");
+  } catch (e) {
+    toast(e.message, "error");
+  }
+}
+
+// 新建密钥弹窗
+function openKeyModal() {
+  $("key-max-uses").value = 10;
+  $("key-msg").textContent = "";
+  $("key-modal").classList.remove("hidden");
+}
+
+async function confirmCreateKey() {
+  const maxUses = Number($("key-max-uses").value);
+  if (!Number.isInteger(maxUses) || maxUses < 1) {
+    $("key-msg").textContent = "可用次数必须是正整数";
+    return;
+  }
+  const btn = $("key-create");
+  btn.disabled = true;
+  try {
+    const k = await API.adminCreateKey(maxUses);
+    toast("创建成功：密钥 " + k.key + "（可用 " + k.max_uses + " 次）", "success");
+    $("key-modal").classList.add("hidden");
+    loadAdminKeys();
+  } catch (e) {
+    $("key-msg").textContent = e.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 // ==================== 分页组件 ====================
 function renderPager(containerId, page, totalPages, go) {
   const el = $(containerId);
@@ -651,6 +851,13 @@ function init() {
 
   // 退出
   $("btn-logout").addEventListener("click", doLogout);
+
+  // 密钥和用户管理（仅 admin 可见）
+  $("btn-admin").addEventListener("click", () => switchPage("admin"));
+  $("btn-new-key").addEventListener("click", openKeyModal);
+  $("key-create").addEventListener("click", confirmCreateKey);
+  $("key-cancel").addEventListener("click", () => $("key-modal").classList.add("hidden"));
+  $("key-users-close").addEventListener("click", () => $("key-users-modal").classList.add("hidden"));
 
   // 已有 token 时尝试恢复会话
   if (API.token) {

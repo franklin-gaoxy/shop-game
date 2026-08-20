@@ -142,6 +142,44 @@ const API = {
       "/api/transactions?page=" + page + "&page_size=" + pageSize
     );
   },
+
+  // ---------- 管理员：用户管理 ----------
+  adminUsers(page, pageSize) {
+    return this.request(
+      "GET",
+      "/api/admin/users?page=" + page + "&page_size=" + pageSize
+    );
+  },
+
+  // status: 0 禁用 1 启用
+  adminSetUserStatus(id, status) {
+    return this.request("PUT", "/api/admin/users/" + id + "/status", {
+      status: Number(status),
+    });
+  },
+
+  adminDeleteUser(id) {
+    return this.request("DELETE", "/api/admin/users/" + id);
+  },
+
+  // ---------- 管理员：密钥管理 ----------
+  adminKeys() {
+    return this.request("GET", "/api/admin/keys");
+  },
+
+  adminCreateKey(maxUses) {
+    return this.request("POST", "/api/admin/keys", {
+      max_uses: Number(maxUses),
+    });
+  },
+
+  adminDeleteKey(id) {
+    return this.request("DELETE", "/api/admin/keys/" + id);
+  },
+
+  adminKeyUsers(id) {
+    return this.request("GET", "/api/admin/keys/" + id + "/users");
+  },
 };
 
 // 存储类型（与后端约定一致）

@@ -613,3 +613,33 @@ button {
 .tag.space {
   background: #0891b2;
 }
+
+/* ==================== 密钥和用户管理 ==================== */
+/* 顶栏管理员菜单选中态 */
+.topbar .btn.admin-menu.active {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: #fff;
+}
+
+/* 密钥代码展示 */
+.key-code {
+  font-family: Consolas, "Courier New", monospace;
+  background: var(--freeze-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 14px;
+  letter-spacing: 1px;
+}
+
+/* 弹窗内表格滚动 */
+.key-users-table {
+  max-height: 320px;
+  overflow-y: auto;
+  margin-bottom: 12px;
+}
+
+.key-users-table .data-table thead th {
+  position: sticky;
+  top: 0;
+}

@@ -66,6 +66,7 @@
       </nav>
       <div class="topbar-right">
         <span id="topbar-user" class="topbar-user"></span>
+        <button type="button" id="btn-admin" class="btn small admin-menu hidden" title="密钥和用户管理">🔑 密钥和用户管理</button>
         <button type="button" id="btn-settings" class="btn small" title="设置">⚙ 设置</button>
         <button type="button" id="btn-logout" class="btn small danger">退出</button>
       </div>
@@ -240,6 +241,57 @@
         </div>
         <div class="pager" id="tx-pager"></div>
       </section>
+
+      <!-- 密钥和用户管理（仅 admin） -->
+      <section id="page-admin" class="page hidden">
+        <!-- 用户管理 -->
+        <div class="page-head">
+          <h2>用户管理</h2>
+          <span class="page-sub" id="admin-user-total"></span>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th class="freeze">用户名</th>
+                <th>角色</th>
+                <th>状态</th>
+                <th>天数</th>
+                <th>剩余金钱</th>
+                <th>注册密钥ID</th>
+                <th>注册时间</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="admin-user-tbody"></tbody>
+          </table>
+        </div>
+        <div class="pager" id="admin-user-pager"></div>
+
+        <!-- 密钥管理 -->
+        <div class="page-head" style="margin-top:24px">
+          <h2>密钥管理</h2>
+          <span class="page-sub">注册密钥用于新用户注册，用完次数后失效</span>
+          <button type="button" id="btn-new-key" class="btn small primary">＋ 新建密钥</button>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th class="freeze">密钥</th>
+                <th>可用次数</th>
+                <th>已用次数</th>
+                <th>剩余次数</th>
+                <th>状态</th>
+                <th>创建者</th>
+                <th>创建时间</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="admin-key-tbody"></tbody>
+          </table>
+        </div>
+      </section>
     </main>
   </div>
 
@@ -301,9 +353,47 @@
     </div>
   </div>
 
+  <!-- ==================== 新建密钥弹窗 ==================== -->
+  <div id="key-modal" class="modal hidden">
+    <div class="modal-box">
+      <h3>新建注册密钥</h3>
+      <label>可用次数（注册满次数后密钥失效）
+        <input type="number" id="key-max-uses" min="1" step="1" value="10">
+      </label>
+      <p class="form-msg" id="key-msg"></p>
+      <div class="modal-actions">
+        <button type="button" id="key-create" class="btn primary">创建</button>
+        <button type="button" id="key-cancel" class="btn">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 密钥绑定用户弹窗 ==================== -->
+  <div id="key-users-modal" class="modal hidden">
+    <div class="modal-box">
+      <h3 id="key-users-title">密钥绑定用户</h3>
+      <div class="table-wrap key-users-table">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th class="freeze">用户名</th>
+              <th>天数</th>
+              <th>剩余金钱</th>
+              <th>注册时间</th>
+            </tr>
+          </thead>
+          <tbody id="key-users-tbody"></tbody>
+        </table>
+      </div>
+      <div class="modal-actions">
+        <button type="button" id="key-users-close" class="btn">关闭</button>
+      </div>
+    </div>
+  </div>
+
   <div id="toast" class="toast hidden"></div>
 
-  <script src="js/api.js?v=2"></script>
-  <script src="js/app.js?v=2"></script>
+  <script src="js/api.js?v=4"></script>
+  <script src="js/app.js?v=4"></script>
 </body>
 </html>
